@@ -1,13 +1,30 @@
 #!/usr/bin/env python
 
-from oxyfloat import get_oxy_floats, get_dac_urls
+import oxyfloat
+import logging
 
-# This takes a few minutes
-##oga_float_nums = get_oxy_floats()
+logger = logging.getLogger(__name__)
+ch = logging.StreamHandler()
 
-# For testing
-oga_float_nums = ['2902124', '2902123', '6901776']
+formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s '
+                              '%(funcName)s():%(lineno)d %(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+logger.setLevel(logging.DEBUG)
 
-dac_urls = get_dac_urls(oga_float_nums)
+# This takes a few minutes to build the list of the desired floats
+oga_float_nums = oxyfloat.get_oxy_floats()
 
-print dac_urls
+# We can use a few numbers for testing
+##logger.debug('Using test oga_float_nums...')
+##oga_float_nums = ['2902124', '2902123', '6901776']
+
+for dac_url in oxyfloat.get_dac_urls(oga_float_nums):
+    for profile_url in oxyfloat.get_profile_opendap_urls(dac_url):
+        logger.info('Reading data from %s', profile_url)
+        try:
+            float_data = oxyfloat.get_profile_data(profile_url)
+        except oxyfloat.RequiredVariableNotPresent as e:
+            logger.warn(e)
+
+
