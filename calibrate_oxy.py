@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import oxyfloat
 import logging
+from oxyfloat import OxyFloat, RequiredVariableNotPresent, OpenDAPServerError
 
 logger = logging.getLogger(__name__)
 ch = logging.StreamHandler()
@@ -12,22 +12,24 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 logger.setLevel(logging.DEBUG)
 
+of = OxyFloat(debug=True)
+
 # This takes a few minutes to build the list of the desired floats
-oga_float_nums = oxyfloat.get_oxy_floats()
+oga_float_nums = of.get_oxy_floats()
 
 # We can use a few numbers for testing
 ##logger.debug('Using test oga_float_nums...')
 ##oga_float_nums = ['1900722', '2902124', '2902123', '6901776']
 
-for dac_url in oxyfloat.get_dac_urls(oga_float_nums):
-    for profile_url in oxyfloat.get_profile_opendap_urls(dac_url,
+for dac_url in of.get_dac_urls(oga_float_nums):
+    for profile_url in of.get_profile_opendap_urls(dac_url,
             use_beautifulsoup=True):
         logger.info('Reading data from ...%s', profile_url[20:])
         try:
-            float_data = oxyfloat.get_profile_data(profile_url)
-        except oxyfloat.RequiredVariableNotPresent as e:
+            float_data = of.get_profile_data(profile_url)
+        except RequiredVariableNotPresent as e:
             logger.warn(e)
-        except oxyfloat.OpenDAPServerError as e:
+        except OpenDAPServerError as e:
             logger.warn(e)
         else:
             print float_data
