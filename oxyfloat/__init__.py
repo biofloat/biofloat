@@ -8,7 +8,7 @@ import pandas as pd
 import pydap.client
 import pydap.exceptions
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from thredds_crawler.crawl import Crawl
 from BeautifulSoup import BeautifulSoup
 
@@ -31,7 +31,21 @@ class OxyFloat(object):
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    def __init__(self, debug=False):
+    def __init__(self, debug=False,
+            status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
+            global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
+            thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS'):
+
+        '''Adjustable settings for OxyFloat: status_url, global_url,
+        thredds_url, debug.
+
+        thredds_url='http://thredds.aodn.org.au/thredds/catalog/IMOS/Argo/dac/'
+        worked on 27 July 2015, but doesn't work now - returns 500 errors.
+        '''
+
+        self.status_url = status_url
+        self.global_url = global_url
+        self.thredds_url = thredds_url
 
         if debug:
             self.logger.setLevel(logging.DEBUG)
@@ -40,7 +54,7 @@ class OxyFloat(object):
         '''Starting with listing of all floats convert the response so that
         the data can be put into a Pandas DataFrame.
         '''
-        argo_all = 'http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt'
+        argo_all = self.status_url
         self.logger.debug('Reading data from %s', argo_all)
         data = urllib2.urlopen(argo_all).readlines()
         d2 = [d.replace('\0' , '').replace('\xff' , '').replace('\xfe' , '').
@@ -74,7 +88,7 @@ class OxyFloat(object):
     def get_dac_urls(self, desired_float_numbers):
         '''Return list of Data Assembly Centers where profile data are archived
         '''
-        global_meta = "ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt"
+        global_meta = self.global_url
         self.logger.debug('Reading data from %s', global_meta)
         with open('gd1.csv', 'w') as f:
             for row in urllib2.urlopen(global_meta):
@@ -87,7 +101,7 @@ class OxyFloat(object):
         for index,row in gd_table.loc[:,['file']].iterrows():
             floatNum = row['file'].split('/')[1]
             if floatNum in desired_float_numbers:
-                url = "http://thredds.aodn.org.au/thredds/catalog/IMOS/Argo/dac/"
+                url = self.thredds_url
                 url += '/'.join(row['file'].split('/')[:2])
                 url += "/profiles/catalog.xml"
                 dac_urls.append(url)
@@ -141,20 +155,27 @@ class OxyFloat(object):
                 raise RequiredVariableNotPresent(url + ' missing ' + v)
 
         try:
-            p = ds['PRES_ADJUSTED'][0,:]
-            t = ds['TEMP_ADJUSTED'][0,:]
-            s = ds['PSAL_ADJUSTED'][0,:]
-            o = ds['DOXY_ADJUSTED'][0,:]
+            p = ds['PRES_ADJUSTED'][0][0]
+            t = ds['TEMP_ADJUSTED'][0][0]
+            s = ds['PSAL_ADJUSTED'][0][0]
+            o = ds['DOXY_ADJUSTED'][0][0]
+            lat = ds['LATITUDE'][0][0]
+            lon = ds['LONGITUDE'][0][0]
         except pydap.exceptions.ServerError as e:
             raise OpenDAPServerError("Can't read data from " + url)
 
-        import pdb; pdb.set_trace()
-        lat = ds['LATITUDE'][0]
-        lon = ds['LONGITUDE'][0]
-
         # Compute a datetime value for the profile
-        dt = datetime.strptime(ds['REFERENCE_DATE_TIME'], '%Y%m%d%H%M%S')
-        dt += timedelta(days=ds['JULD'][0])
+        dt = datetime.strptime(ds['REFERENCE_DATE_TIME'][:], '%Y%m%d%H%M%S')
+        dt += timedelta(days=ds['JULD'][0][0])
 
-        return {'p': p, 't': t, 's': s, 'o': o, 'lat': lat, 'lon': lon, 'dt': dt}
+        # Build a data structure that includes metadata for each variable
+        pd = {'p': (ds['PRES_ADJUSTED'].attributes, p),
+              't': (ds['TEMP_ADJUSTED'].attributes, t),
+              's': (ds['PSAL_ADJUSTED'].attributes, s),
+              'o': (ds['DOXY_ADJUSTED'].attributes, o),
+              'lat': (ds['LATITUDE'].attributes, lat),
+              'lon': (ds['LONGITUDE'].attributes, lon),
+              'dt': ({'name': 'time', 'units': 'UTC'}, dt)}
+                  
+        return pd
 
