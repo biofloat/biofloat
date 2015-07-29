@@ -22,6 +22,8 @@ class OpenDAPServerError(Exception):
 
 
 class OxyFloat(object):
+    '''Collection of methods for working with Argo profiling float data.
+    '''
 
     logger = logging.getLogger(__name__)
     ch = logging.StreamHandler()
@@ -36,9 +38,18 @@ class OxyFloat(object):
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS'):
 
-        '''Adjustable settings for OxyFloat: status_url, global_url,
-        thredds_url, debug.
+        '''Initialize OxyFloat object
+        
+        Args:
+            debug (bool): Turn on debug output, defaults to False
+            status_url (str): Source URL for Argo status data, defaults to
+                http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt
+            global_url (str): Source URL for DAC locations, defaults to
+                ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt
+             thredds_url (str): Base URL for THREDDS Data Server, defaults to
+                http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS
 
+        Note:
         thredds_url='http://thredds.aodn.org.au/thredds/catalog/IMOS/Argo/dac/'
         worked on 27 July 2015, but doesn't work now - returns 500 errors.
         '''
@@ -51,8 +62,12 @@ class OxyFloat(object):
             self.logger.setLevel(logging.DEBUG)
 
     def get_oxy_floats(self, age=340):
-        '''Starting with listing of all floats convert the response so that
-        the data can be put into a Pandas DataFrame.
+        '''Starting with listing of all floats determine which floats have an
+        oxygen sensor, are not greylisted, and have more than a specified days
+        of data. Returns a list of float number strings.
+
+        Args:
+            age (int): Restrict to floats with data >= age, defaults to 340
         '''
         argo_all = self.status_url
         self.logger.debug('Reading data from %s', argo_all)
@@ -87,6 +102,9 @@ class OxyFloat(object):
 
     def get_dac_urls(self, desired_float_numbers):
         '''Return list of Data Assembly Centers where profile data are archived
+
+        Args:
+            desired_float_numbers (list[str]): List of strings of float numbers
         '''
         global_meta = self.global_url
         self.logger.debug('Reading data from %s', global_meta)
@@ -144,7 +162,8 @@ class OxyFloat(object):
         return urls
 
     def get_profile_data(self, url):
-        '''Return a dictionary of lists of varaibles
+        '''Return a dictionary of tuples of lists of variables and their 
+        attributes.
         '''
         self.logger.debug('Opening %s', url)
         ds = pydap.client.open_url(url)
