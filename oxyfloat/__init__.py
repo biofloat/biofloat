@@ -5,8 +5,9 @@ import logging
 import urllib2
 import requests
 import pandas as pd
+import pydap.client
+import pydap.exceptions
 
-from netCDF4 import Dataset
 from datetime import datetime
 from thredds_crawler.crawl import Crawl
 from BeautifulSoup import BeautifulSoup
@@ -23,6 +24,10 @@ logger.setLevel(logging.DEBUG)
 
 
 class RequiredVariableNotPresent(Exception):
+    pass
+
+
+class OpenDAPServerError(Exception):
     pass
 
 
@@ -123,26 +128,28 @@ def get_profile_data(url):
     '''Return a dictionary of lists of varaibles
     '''
     logger.debug('Opening %s', url)
-    ds = Dataset(url)
+    ds = pydap.client.open_url(url)
     logger.debug('Checking %s', url)
     for v in ('PRES_ADJUSTED', 'TEMP_ADJUSTED', 'PSAL_ADJUSTED',
             'DOXY_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'):
-        if v not in ds.variables:
+        if v not in ds.keys():
             raise RequiredVariableNotPresent(url + ' missing ' + v)
 
-    import pdb; pdb.set_trace()
-    p = ds.variables['PRES_ADJUSTED'][0][:]
-    t = ds.variables['TEMP_ADJUSTED'][0][:]
-    s = ds.variables['PSAL_ADJUSTED'][0][:]
-    o = ds.variables['DOXY_ADJUSTED'][0][:]
+    try:
+        p = ds['PRES_ADJUSTED'][0,:]
+        t = ds['TEMP_ADJUSTED'][0,:]
+        s = ds['PSAL_ADJUSTED'][0,:]
+        o = ds['DOXY_ADJUSTED'][0,:]
+    except pydap.exceptions.ServerError as e:
+        raise OpenDAPServerError("Can't read data from " + url)
 
-    lat = ds.variables['LATITUDE'][0]
-    lon = ds.variables['LONGITUDE'][0]
+    import pdb; pdb.set_trace()
+    lat = ds['LATITUDE'][0]
+    lon = ds['LONGITUDE'][0]
 
     # Compute a datetime value for the profile
-    epoch = datetime.strptime(ds.variables['REFERENCE_DATE_TIME'], 
-            '%Y%m%d%H%M%S')
-    dt = epoch + timedelta(days=ds.variables['JULD'][0])
+    dt = datetime.strptime(ds['REFERENCE_DATE_TIME'], '%Y%m%d%H%M%S')
+    dt += timedelta(days=ds['JULD'][0])
 
     return {'p': p, 't': t, 's': s, 'o': o, 'lat': lat, 'lon': lon, 'dt': dt}
 

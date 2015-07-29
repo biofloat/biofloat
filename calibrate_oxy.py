@@ -27,6 +27,8 @@ for dac_url in oxyfloat.get_dac_urls(oga_float_nums):
             float_data = oxyfloat.get_profile_data(profile_url)
         except oxyfloat.RequiredVariableNotPresent as e:
             logger.warn(e)
+        except oxyfloat.OpenDAPServerError as e:
+            logger.warn(e)
         else:
             print float_data
 
