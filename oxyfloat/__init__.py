@@ -46,11 +46,13 @@ def get_oxy_floats(age=340):
     fd_oxy = df.loc[df.loc[:, 'OXYGEN'] == 1, :]
     fd_gl  = df.loc[df.loc[:, 'GREYLIST'] == 0 , :] 
     fd_age = df.loc[df.loc[:, 'AGE'] >= age, :]
+    logger.debug('len(oxy) = %d, len(gl) = %d, len(age) = %d' % (len(fd_oxy), len(fd_gl), len(fd_age))) 
 
     # Use Pandas to merge these selections
     logger.debug('Merging records with oxygen, not greylisted, and age >= %s',
                   age)
     fd_merge = pd.merge(pd.merge(fd_oxy, fd_gl), fd_age)
+    logger.debug('len(fd_merge) = %d', len(fd_merge))
 
     # Pull out only the float numbers and return a normal Python list of them
     oxy_floats = []
@@ -120,6 +122,7 @@ def get_profile_opendap_urls(catalog_url, use_beautifulsoup=True):
 def get_profile_data(url):
     '''Return a dictionary of lists of varaibles
     '''
+    logger.debug('Opening %s', url)
     ds = Dataset(url)
     logger.debug('Checking %s', url)
     for v in ('PRES_ADJUSTED', 'TEMP_ADJUSTED', 'PSAL_ADJUSTED',
