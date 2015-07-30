@@ -8,6 +8,7 @@ import pandas as pd
 import pydap.client
 import pydap.exceptions
 
+from bson import BSON
 from datetime import datetime, timedelta
 from thredds_crawler.crawl import Crawl
 from BeautifulSoup import BeautifulSoup
@@ -173,11 +174,12 @@ class OxyFloat(object):
             if v not in ds.keys():
                 raise RequiredVariableNotPresent(url + ' missing ' + v)
 
+        # Extract data casting numpy arrays into normal Python lists
         try:
-            p = ds['PRES_ADJUSTED'][0][0]
-            t = ds['TEMP_ADJUSTED'][0][0]
-            s = ds['PSAL_ADJUSTED'][0][0]
-            o = ds['DOXY_ADJUSTED'][0][0]
+            p = ds['PRES_ADJUSTED'][0][0].tolist()
+            t = ds['TEMP_ADJUSTED'][0][0].tolist()
+            s = ds['PSAL_ADJUSTED'][0][0].tolist()
+            o = ds['DOXY_ADJUSTED'][0][0].tolist()
             lat = ds['LATITUDE'][0][0]
             lon = ds['LONGITUDE'][0][0]
         except pydap.exceptions.ServerError as e:
@@ -188,13 +190,13 @@ class OxyFloat(object):
         dt += timedelta(days=ds['JULD'][0][0])
 
         # Build a data structure that includes metadata for each variable
-        pd = {'p': (ds['PRES_ADJUSTED'].attributes, p),
-              't': (ds['TEMP_ADJUSTED'].attributes, t),
-              's': (ds['PSAL_ADJUSTED'].attributes, s),
-              'o': (ds['DOXY_ADJUSTED'].attributes, o),
-              'lat': (ds['LATITUDE'].attributes, lat),
-              'lon': (ds['LONGITUDE'].attributes, lon),
-              'dt': ({'name': 'time', 'units': 'UTC'}, dt)}
+        pd = {'p': [ds['PRES_ADJUSTED'].attributes,  p],
+              't': [ds['TEMP_ADJUSTED'].attributes, t],
+              's': [ds['PSAL_ADJUSTED'].attributes, s],
+              'o': [ds['DOXY_ADJUSTED'].attributes, o],
+              'lat': [ds['LATITUDE'].attributes, lat],
+              'lon': [ds['LONGITUDE'].attributes, lon],
+              'dt': [{'name': 'time', 'units': 'UTC'}, dt]}
                   
         return pd
 
