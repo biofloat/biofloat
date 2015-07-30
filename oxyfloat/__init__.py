@@ -8,7 +8,7 @@ import pandas as pd
 import pydap.client
 import pydap.exceptions
 
-from bson import BSON
+from pymongo import MongoClient
 from datetime import datetime, timedelta
 from thredds_crawler.crawl import Crawl
 from BeautifulSoup import BeautifulSoup
@@ -162,7 +162,7 @@ class OxyFloat(object):
 
         return urls
 
-    def get_profile_data(self, url):
+    def get_profile_data(self, url, surface_values_only=False):
         '''Return a dictionary of tuples of lists of variables and their 
         attributes.
         '''
@@ -176,10 +176,17 @@ class OxyFloat(object):
 
         # Extract data casting numpy arrays into normal Python lists
         try:
-            p = ds['PRES_ADJUSTED'][0][0].tolist()
-            t = ds['TEMP_ADJUSTED'][0][0].tolist()
-            s = ds['PSAL_ADJUSTED'][0][0].tolist()
-            o = ds['DOXY_ADJUSTED'][0][0].tolist()
+            if surface_values_only:
+                p = ds['PRES_ADJUSTED'][0][0][0].tolist()
+                t = ds['TEMP_ADJUSTED'][0][0][0].tolist()
+                s = ds['PSAL_ADJUSTED'][0][0][0].tolist()
+                o = ds['DOXY_ADJUSTED'][0][0][0].tolist()
+            else:
+                p = ds['PRES_ADJUSTED'][0][0].tolist()
+                t = ds['TEMP_ADJUSTED'][0][0].tolist()
+                s = ds['PSAL_ADJUSTED'][0][0].tolist()
+                o = ds['DOXY_ADJUSTED'][0][0].tolist()
+
             lat = ds['LATITUDE'][0][0]
             lon = ds['LONGITUDE'][0][0]
         except pydap.exceptions.ServerError as e:
@@ -190,7 +197,7 @@ class OxyFloat(object):
         dt += timedelta(days=ds['JULD'][0][0])
 
         # Build a data structure that includes metadata for each variable
-        pd = {'p': [ds['PRES_ADJUSTED'].attributes,  p],
+        pd = {'p': [ds['PRES_ADJUSTED'].attributes, p],
               't': [ds['TEMP_ADJUSTED'].attributes, t],
               's': [ds['PSAL_ADJUSTED'].attributes, s],
               'o': [ds['DOXY_ADJUSTED'].attributes, o],
@@ -199,4 +206,44 @@ class OxyFloat(object):
               'dt': [{'name': 'time', 'units': 'UTC'}, dt]}
                   
         return pd
+
+    def get_data_for_float(self, dac_url, only_file=None, 
+            surface_values_only=False):
+        '''Given a dac_url return a list of hashes of data for each 
+        profile for the float specified in dac_url.  Example dac_url
+        for float 1900722:
+
+        http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBSaoml/1900722/profiles/catalog.xml
+        '''
+        pd = []
+        for profile_url in sorted(self.get_profile_opendap_urls(dac_url)):
+            if only_file:
+                if not profile_url.endswith(only_file):
+                    continue
+
+            float = profile_url.split('/')[7]
+            prof = str(profile_url.split('/')[-1].split('.')[0].split('_')[1])
+            self.logger.info('Reading data from ' + profile_url[:20] + '...' +
+                       profile_url[-50:])
+            try:
+                d = self.get_profile_data(profile_url, 
+                        surface_values_only=surface_values_only)
+                pd.append({float: {prof: d}})
+            except RequiredVariableNotPresent as e:
+                self.logger.warn(e)
+            except OpenDAPServerError as e:
+                self.logger.warn(e)
+
+        return pd
+
+    def db_insert_float_data(self, float_data):
+        '''Insert/update document into Mongo database
+        '''
+        client = MongoClient()
+        db = client.oxyfloat
+        floats = db.floats
+
+        result = floats.insert_many(float_data)
+        self.logger.debug('IDs stored in mongodb floats database' + 
+                str(result.inserted_ids))
 
