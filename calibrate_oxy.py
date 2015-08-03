@@ -36,7 +36,7 @@ floats = db.floats
     ##    of.db_insert_float_data(pd)
 
 # Pull out all of the latitude/longitude pairs
-geoms = db.floats.find(projection={'lat': True, 'lon': True})
+geoms = db.floats.find(projection={'lat.lon':1})
 for geom in geoms:
     print geom
 
