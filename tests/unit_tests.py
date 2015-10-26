@@ -13,10 +13,31 @@ class DataTest(unittest.TestCase):
         self.of = OxyFloat()
 
     def test_get_oxyfloats(self):
-        float_list = self.of.get_oxy_floats()
-        print len(float_list)
-        self.assertNotEqual(len(float_list), 0)
+        self.oga_floats = self.of.get_oxy_floats()
+        self.assertNotEqual(len(self.oga_floats), 0)
 
+    def _get_dac_urls(self):
+        # Testing with a float that has data
+        oga_floats = ['1900650']
+        for dac_url in self.of.get_dac_urls(oga_floats):
+            self.dac_url = dac_url
+            self.assertTrue(self.dac_url.startswith('http'))
+            break
+
+    def _get_profile_opendap_urls(self):
+        for profile_url in self.of.get_profile_opendap_urls(self.dac_url):
+            self.profile_url = profile_url
+            break
+
+    def _get_profile_data(self):
+        d = self.of.get_profile_data(self.profile_url)
+        self.assertNotEqual(len(d), 0)
+
+    def test_read_data(self):
+        # Methods need to be called in order
+        self._get_dac_urls()
+        self._get_profile_opendap_urls()
+        self._get_profile_data()
 
 if __name__ == '__main__':
     unittest.main()
