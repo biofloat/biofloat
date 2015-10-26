@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+import os
+import sys
+parentDir = os.path.join(os.path.dirname(__file__), "../")
+sys.path.insert(0, parentDir)
+
 from pymongo import MongoClient
 from oxyfloat import OxyFloat, RequiredVariableNotPresent, OpenDAPServerError
 
