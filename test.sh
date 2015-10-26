@@ -1,2 +1,4 @@
 #!/bin/bash
-tests/get_data.py
+coverage run --source=oxyfloat tests/get_data.py
+coverage report -m
+
