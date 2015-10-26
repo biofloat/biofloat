@@ -1,0 +1,22 @@
+language: python
+
+python:
+  - "2.7"
+  #- "3.4"
+  #- "3.5"
+
+before_install: 
+  - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b
+  - export PATH=/home/travis/miniconda/bin:$PATH
+  - conda update --yes conda
+  - pip install -r requirements.txt
+script:  
+  - ./test.sh 
+after_script:
+  - COVERALLS_REPO_TOKEN=W1wSPd6A9HGyoPWXGlyZ6mxkGsZR7BybT coveralls --base_dir oxyfloat
+notifications:
+  email:
+    on_success: change
+    on_failure: always
