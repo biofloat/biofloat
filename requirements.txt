@@ -1,3 +1,4 @@
+pymongo==3.0.3
 pandas==0.17.0
 Pydap==3.1.1
 requests==2.8.1
