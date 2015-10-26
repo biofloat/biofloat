@@ -33,11 +33,18 @@ class DataTest(unittest.TestCase):
         d = self.of.get_profile_data(self.profile_url)
         self.assertNotEqual(len(d), 0)
 
-    def test_read_data(self):
+    def test_read_profile_data(self):
         # Methods need to be called in order
         self._get_dac_urls()
+        self._get_profile_opendap_urls(use_beautifulsoup=False)
         self._get_profile_opendap_urls()
+        self._get_profile_data(surface_values_only=True)
         self._get_profile_data()
+
+    def test_get_data_for_float(self):
+        dac_url = 'http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBSaoml/1900722/profiles/catalog.xml'
+        # This takes a long time to run
+        ##self.of.get_data_for_float(dac_url)
 
 if __name__ == '__main__':
     unittest.main()
