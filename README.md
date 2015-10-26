@@ -2,7 +2,7 @@ oxyfloat
 --------
 
 [![Build Status](https://travis-ci.org/MBARIMike/oxyfloat.svg?branch=master)](https://travis-ci.org/MBARIMike/oxyfloat)
-[![Coverage Status](https://coveralls.io/repos/stoqs/stoqs/badge.svg?branch=master&service=github)](https://coveralls.io/github/stoqs/stoqs?branch=master)
+[![Coverage Status](https://coveralls.io/repos/MBARIMike/oxyfloat/badge.svg?branch=master&service=github)](https://coveralls.io/github/MBARIMike/oxyfloat?branch=master)
 
 oxyfloat is a Python module designed to enable oceanographers to perform
 quality control operations on oxygen data from Argo ocean drifters.
