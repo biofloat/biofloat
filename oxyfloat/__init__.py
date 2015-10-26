@@ -1,4 +1,4 @@
 __all__ = ['exceptions', 'OxyFloat']
 
-from oxyfloat.OxyFloat import OxyFloat
-from oxyfloat.exceptions import RequiredVariableNotPresent, OpenDAPServerError
+from .OxyFloat import OxyFloat
+from .exceptions import RequiredVariableNotPresent, OpenDAPServerError
