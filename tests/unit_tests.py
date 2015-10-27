@@ -10,7 +10,7 @@ from oxyfloat import OxyFloat
 
 class DataTest(unittest.TestCase):
     def setUp(self):
-        self.of = OxyFloat()
+        self.of = OxyFloat(debug=False)
 
     def test_get_oxyfloats(self):
         self.oga_floats = self.of.get_oxy_floats()
@@ -25,26 +25,30 @@ class DataTest(unittest.TestCase):
             break
 
     def _get_profile_opendap_urls(self):
+        for profile_url in self.of.get_profile_opendap_urls(self.dac_url,
+                use_beautifulsoup=False):
+            self.profile_url = profile_url
+            break
         for profile_url in self.of.get_profile_opendap_urls(self.dac_url):
             self.profile_url = profile_url
             break
 
     def _get_profile_data(self):
+        ds = self.of.get_profile_data(self.profile_url, surface_values_only=True)
+        self.assertNotEqual(len(ds), 0)
         d = self.of.get_profile_data(self.profile_url)
         self.assertNotEqual(len(d), 0)
 
     def test_read_profile_data(self):
         # Methods need to be called in order
         self._get_dac_urls()
-        self._get_profile_opendap_urls(use_beautifulsoup=False)
         self._get_profile_opendap_urls()
-        self._get_profile_data(surface_values_only=True)
         self._get_profile_data()
 
     def test_get_data_for_float(self):
         dac_url = 'http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBSaoml/1900722/profiles/catalog.xml'
-        # This takes a long time to run
-        ##self.of.get_data_for_float(dac_url)
+        # This takes a long time to run so specify an only_file
+        self.of.get_data_for_float(dac_url, only_file='MD1900722_135.nc')
 
 if __name__ == '__main__':
     unittest.main()
