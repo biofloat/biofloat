@@ -100,7 +100,7 @@ class OxyFloat(object):
         '''Read CSV Argo status data file from the Internet and cache
         its conversion to a Pandas DataFrame in a local HDF cache file.
         '''
-        self.put_df(self.status_to_df(), 'status', self.cache_file)
+        self.put_df(self.status_to_df(), STATUS, self.cache_file)
 
     def read_status(self):
         '''Read CSV Argo status data from local cache.
@@ -116,7 +116,11 @@ class OxyFloat(object):
         Args:
             age (int): Restrict to floats with data >= age, defaults to 340
         '''
-        df = self.read_status()
+        try:
+            df = self.read_status()
+        except KeyError:
+            self.write_status()
+            df = self.read_status()
 
         # Select only the rows that have oxygen data, not greylisted, and > age
         fd_oxy = df.loc[df.loc[:, 'OXYGEN'] == 1, :]
