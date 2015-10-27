@@ -13,7 +13,7 @@ before_install:
   - conda update --yes conda
   - pip install -r requirements.txt
 install:
-  - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib pandas
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib pandas h5py
 script:  
   - ./test.sh 
 after_script:
