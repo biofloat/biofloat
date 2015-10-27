@@ -49,6 +49,7 @@ class OxyFloat(object):
         worked on 27 July 2015, but doesn't work now - returns 500 errors.
         '''
 
+        self.debug = debug
         self.status_url = status_url
         self.global_url = global_url
         self.thredds_url = thredds_url
@@ -127,8 +128,8 @@ class OxyFloat(object):
         '''Crawl the THREDDS catalog to return all the opendap urls to the profiles.
         The thredds_crawler is rrreeeeaaaallllyyy slow so the default is to use
         BeautifulSoup to simply parse the .xml and then build the TDS urls.
+        Implemented as a generator.
         '''
-        start_time = time.time()
         if use_beautifulsoup:
             self.logger.debug("Parsing %s", catalog_url)
             req = requests.get(catalog_url)
@@ -138,23 +139,17 @@ class OxyFloat(object):
             base_url = '/'.join(catalog_url.split('/')[:4]) + '/dodsC/'
 
             # Pull out <dataset ... urlPath='...nc'> attributes from the XML
-            urls = []
             for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
-                urls.append(base_url + e['urlpath'])
+                yield base_url + e['urlpath']
 
         else:
             self.logger.debug("Crawling %s", catalog_url)
             sys.stdout.flush()
-            c = Crawl(catalog_url, debug=True)
+            c = Crawl(catalog_url, debug=self.debug)
 
-            # Use list comprehension to get only the opendap urls
-            urls = [s.get("url") for d in c.datasets for s in d.services 
-                    if s.get("service").lower() == "opendap"]
-
-        sec_diff = time.time() - start_time
-        self.logger.debug("Found %s netCDF files in %.1f seconds" % (len(urls), sec_diff))
-
-        return urls
+            # Use generator comprehension to get only the opendap urls
+            (s.get("url") for d in c.datasets for s in d.services 
+                    if s.get("service").lower() == "opendap")
 
     def get_profile_data(self, url, surface_values_only=False):
         '''Return a dictionary of tuples of lists of variables and their 
