@@ -11,7 +11,7 @@ before_install:
   - ./miniconda.sh -b
   - export PATH=/home/travis/miniconda/bin:$PATH
   - conda update --yes conda
-  - export HDF5_DIR=/home/travis/miniconda/
+  - export HDF5_DIR=/home/travis/miniconda/hdf5/lib
   - pip install -r requirements.txt
 install:
   - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib pandas
