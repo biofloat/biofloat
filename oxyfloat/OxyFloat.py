@@ -11,7 +11,7 @@ import pydap.exceptions
 from pymongo import MongoClient
 from datetime import datetime, timedelta
 from thredds_crawler.crawl import Crawl
-from BeautifulSoup import BeautifulSoup
+from bs4 import BeautifulSoup
 
 # Support Python 2.7 and 3.x
 try:
@@ -29,12 +29,12 @@ class OxyFloat(object):
     '''
 
     logger = logging.getLogger(__name__)
-    ##ch = logging.StreamHandler()
+    ch = logging.StreamHandler()
 
-    ##formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s '
-    ##                              '%(funcName)s():%(lineno)d %(message)s')
-    ##ch.setFormatter(formatter)
-    ##logger.addHandler(ch)
+    formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s '
+                                  '%(funcName)s():%(lineno)d %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
 
     def __init__(self, debug=False, cache_file='oxyfloat_cache.hdf',
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
@@ -119,6 +119,7 @@ class OxyFloat(object):
         try:
             df = self.read_status()
         except KeyError:
+            self.logger.debug('Could not read status, calling write_status()')
             self.write_status()
             df = self.read_status()
 
@@ -178,7 +179,7 @@ class OxyFloat(object):
         if use_beautifulsoup:
             self.logger.debug("Parsing %s", catalog_url)
             req = requests.get(catalog_url)
-            soup = BeautifulSoup(req.text)
+            soup = BeautifulSoup(req.text, 'html.parser')
 
             # Expect that this is a standard TDS with dodsC used for OpenDAP
             base_url = '/'.join(catalog_url.split('/')[:4]) + '/dodsC/'

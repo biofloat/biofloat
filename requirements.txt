@@ -1,4 +1,4 @@
-BeautifulSoup==3.2.1
+beautifulsoup4==4.4.1
 coverage==3.7.1
 pymongo==3.0.3
 pandas==0.17.0
