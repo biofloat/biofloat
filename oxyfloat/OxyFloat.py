@@ -13,22 +13,30 @@ from datetime import datetime, timedelta
 from thredds_crawler.crawl import Crawl
 from BeautifulSoup import BeautifulSoup
 
+# Support Python 2.7 and 3.x
+try:
+        from io import StringIO
+except ImportError:
+        from cStringIO import StringIO
+
 from exceptions import RequiredVariableNotPresent, OpenDAPServerError
 
+# Literals for groups stored in local HDF file cache
+STATUS = 'status'
 
 class OxyFloat(object):
     '''Collection of methods for working with Argo profiling float data.
     '''
 
     logger = logging.getLogger(__name__)
-    ch = logging.StreamHandler()
+    ##ch = logging.StreamHandler()
 
-    formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s '
-                                  '%(funcName)s():%(lineno)d %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    ##formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s '
+    ##                              '%(funcName)s():%(lineno)d %(message)s')
+    ##ch.setFormatter(formatter)
+    ##logger.addHandler(ch)
 
-    def __init__(self, debug=False,
+    def __init__(self, debug=False, cache_file='oxyfloat_cache.hdf',
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS'):
@@ -50,12 +58,55 @@ class OxyFloat(object):
         '''
 
         self.debug = debug
+        self.cache_file = cache_file
         self.status_url = status_url
         self.global_url = global_url
         self.thredds_url = thredds_url
 
         if debug:
             self.logger.setLevel(logging.DEBUG)
+
+    def status_to_df(self):
+        '''Save the data at status_url link to a temporary .csv file 
+        and load into a Pandas DataFrame.  Returns that DataFrame.
+        '''
+        self.logger.debug('Reading data from %s', self.status_url)
+        req = requests.get(self.status_url)
+        req.encoding = 'UTF-16LE'
+
+        # Had to tell requests the encoding, StringIO makes the text 
+        # look like a file object. Skip over leading BOM bytes.
+        df = pd.read_csv(StringIO(req.text[1:]))
+        return df
+
+    def put_df(self, df, name, filename):
+        '''Save Pandas DataFrame to local storage.
+        '''
+        store = pd.HDFStore(filename)
+        self.logger.debug('Saving DataFrame to name {} in file {}'
+                                        .format(name, filename))
+        store[name] = df
+        store.close()
+
+    def get_df(self, name, filename):
+        '''Get Pandas DataFrame from local storage.
+        '''
+        store = pd.HDFStore(filename)
+        df = store[name]
+        store.close()
+        return df
+
+    def write_status(self):
+        '''Read CSV Argo status data file from the Internet and cache
+        its conversion to a Pandas DataFrame in a local HDF cache file.
+        '''
+        self.put_df(self.status_to_df(), 'status', self.cache_file)
+
+    def read_status(self):
+        '''Read CSV Argo status data from local cache.
+        Returns Pandas DataFrame.
+        '''
+        return self.get_df(STATUS, self.cache_file)
 
     def get_oxy_floats(self, age=340):
         '''Starting with listing of all floats determine which floats have an
@@ -65,27 +116,17 @@ class OxyFloat(object):
         Args:
             age (int): Restrict to floats with data >= age, defaults to 340
         '''
-        argo_all = self.status_url
-        self.logger.debug('Reading data from %s', argo_all)
-        data = urllib2.urlopen(argo_all).readlines()
-        d2 = [d.replace('\0' , '').replace('\xff' , '').replace('\xfe' , '').
-                replace('\r\n' , '') for d in data]
-
-        # Write the data to a file so that it can be read into a Pandas DataFrame
-        with open('d2.csv', 'w') as f:
-            for row in d2:
-                f.write(row + '\n')
-        df = pd.read_csv('d2.csv')
+        df = self.read_status()
 
         # Select only the rows that have oxygen data, not greylisted, and > age
         fd_oxy = df.loc[df.loc[:, 'OXYGEN'] == 1, :]
         fd_gl  = df.loc[df.loc[:, 'GREYLIST'] == 0 , :] 
         fd_age = df.loc[df.loc[:, 'AGE'] >= age, :]
-        self.logger.debug('len(oxy) = %d, len(gl) = %d, len(age) = %d' % (len(fd_oxy), len(fd_gl), len(fd_age))) 
+        self.logger.debug('len(oxy) = %d, len(gl) = %d, len(age) = %d' % 
+                (len(fd_oxy), len(fd_gl), len(fd_age))) 
 
         # Use Pandas to merge these selections
-        self.logger.debug('Merging records with oxygen, not greylisted, and age >= %s',
-                      age)
+        self.logger.debug('Merging oxygen, not greylisted, and age >= %s', age)
         fd_merge = pd.merge(pd.merge(fd_oxy, fd_gl), fd_age)
         self.logger.debug('len(fd_merge) = %d', len(fd_merge))
 
