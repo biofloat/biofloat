@@ -12,10 +12,11 @@ before_install:
   - export PATH=/home/travis/miniconda/bin:$PATH
   - conda update --yes conda
   - export HDF5_DIR=/home/travis/miniconda/
-  - pip install Pydap==3.1.1
-install:
-  - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib pandas hdf5
-  - pip install -r requirements.txt
+  - conda install hdf5
+  ##- pip install Pydap==3.1.1
+##install:
+  ##- conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib pandas hdf5
+  ##- pip install -r requirements.txt
 script:  
   - ./test.sh 
 after_script:
