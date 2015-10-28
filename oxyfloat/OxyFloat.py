@@ -36,8 +36,9 @@ class OxyFloat(object):
                                   '%(funcName)s():%(lineno)d %(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
+    log_levels = (logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG)
 
-    def __init__(self, debug=False, cache_file='oxyfloat_cache.hdf',
+    def __init__(self, verbosity=0, cache_file=None,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS'):
@@ -45,27 +46,26 @@ class OxyFloat(object):
         '''Initialize OxyFloat object
         
         Args:
-            debug (bool): Turn on debug output, defaults to False
+            verbosity (int): range(4), default=0
             status_url (str): Source URL for Argo status data, defaults to
                 http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt
             global_url (str): Source URL for DAC locations, defaults to
                 ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt
-             thredds_url (str): Base URL for THREDDS Data Server, defaults to
+            thredds_url (str): Base URL for THREDDS Data Server, defaults to
                 http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS
-
-        Note:
-        thredds_url='http://thredds.aodn.org.au/thredds/catalog/IMOS/Argo/dac/'
-        worked on 27 July 2015, but doesn't work now - returns 500 errors.
         '''
-
-        self.debug = debug
-        self.cache_file = cache_file
         self.status_url = status_url
         self.global_url = global_url
         self.thredds_url = thredds_url
 
-        if debug:
-            self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(self.log_levels[verbosity])
+
+        if cache_file:
+            self.cache_file = cache_file
+        else:
+            # Write to same directory where this module is installed
+            parent_dir = os.path.join(os.path.dirname(__file__), "../")
+            self.cache_file = os.path.join(parent_dir, 'oxyfloat_cache.hdf')
 
     def status_to_df(self):
         '''Read the data at status_url link and return it as a Pandas DataFrame.

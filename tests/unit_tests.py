@@ -10,7 +10,7 @@ from oxyfloat import OxyFloat
 
 class DataTest(unittest.TestCase):
     def setUp(self):
-        self.of = OxyFloat(debug=False)
+        self.of = OxyFloat(verbosity=3)
 
     def test_get_oxyfloats(self):
         self.oga_floats = self.of.get_oxy_floats()
