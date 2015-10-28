@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 import time
@@ -47,6 +48,7 @@ class OxyFloat(object):
         
         Args:
             verbosity (int): range(4), default=0
+            cache_file (str): Defaults to oxyfloat_cache.hdf next to module
             status_url (str): Source URL for Argo status data, defaults to
                 http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt
             global_url (str): Source URL for DAC locations, defaults to
@@ -97,11 +99,10 @@ class OxyFloat(object):
             self.logger.debug('Getting {} from {}'.format(name, filename))
             df = store[name]
         except KeyError:
+            raise
+        finally:
             self.logger.debug('store.close()')
             store.close()
-            raise
-        self.logger.debug('store.close()')
-        store.close()
 
         return df
 
@@ -198,32 +199,20 @@ class OxyFloat(object):
 
         return dac_urls
 
-    def get_profile_opendap_urls(self, catalog_url, use_beautifulsoup=True):
-        '''Crawl the THREDDS catalog to return all the opendap urls to the profiles.
-        The thredds_crawler is rrreeeeaaaallllyyy slow so the default is to use
-        BeautifulSoup to simply parse the .xml and then build the TDS urls.
+    def get_profile_opendap_urls(self, catalog_url):
+        '''Returns all the opendap urls to the profiles at catalog_url.
         Implemented as a generator.
         '''
-        if use_beautifulsoup:
-            self.logger.debug("Parsing %s", catalog_url)
-            req = requests.get(catalog_url)
-            soup = BeautifulSoup(req.text, 'html.parser')
+        self.logger.debug("Parsing %s", catalog_url)
+        req = requests.get(catalog_url)
+        soup = BeautifulSoup(req.text, 'html.parser')
 
-            # Expect that this is a standard TDS with dodsC used for OpenDAP
-            base_url = '/'.join(catalog_url.split('/')[:4]) + '/dodsC/'
+        # Expect that this is a standard TDS with dodsC used for OpenDAP
+        base_url = '/'.join(catalog_url.split('/')[:4]) + '/dodsC/'
 
-            # Pull out <dataset ... urlPath='...nc'> attributes from the XML
-            for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
-                yield base_url + e['urlpath']
-
-        else:
-            self.logger.debug("Crawling %s", catalog_url)
-            sys.stdout.flush()
-            c = Crawl(catalog_url, debug=self.debug)
-
-            # Use generator comprehension to get only the opendap urls
-            (s.get("url") for d in c.datasets for s in d.services 
-                    if s.get("service").lower() == "opendap")
+        # Pull out <dataset ... urlPath='...nc'> attributes from the XML
+        for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
+            yield base_url + e['urlpath']
 
     def get_profile_data(self, url, surface_values_only=False):
         '''Return a dictionary of tuples of lists of variables and their 

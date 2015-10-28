@@ -25,10 +25,6 @@ class DataTest(unittest.TestCase):
             break
 
     def _get_profile_opendap_urls(self):
-        for profile_url in self.of.get_profile_opendap_urls(self.dac_url,
-                use_beautifulsoup=False):
-            self.profile_url = profile_url
-            break
         for profile_url in self.of.get_profile_opendap_urls(self.dac_url):
             self.profile_url = profile_url
             break
