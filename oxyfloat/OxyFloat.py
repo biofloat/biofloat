@@ -69,6 +69,31 @@ class OxyFloat(object):
             parent_dir = os.path.join(os.path.dirname(__file__), "../")
             self.cache_file = os.path.join(parent_dir, 'oxyfloat_cache.hdf')
 
+    def put_df(self, df, name, filename):
+        '''Save Pandas DataFrame to local storage.
+        '''
+        store = pd.HDFStore(filename)
+        self.logger.debug('Saving DataFrame to name {} in file {}'
+                                        .format(name, filename))
+        store[name] = df
+        self.logger.debug('store.close()')
+        store.close()
+
+    def get_df(self, name):
+        '''Get Pandas DataFrame from local storage or raise KeyError.
+        '''
+        store = pd.HDFStore(self.cache_file)
+        try:
+            self.logger.debug('Getting {} from {}'.format(name, self.cache_file))
+            df = store[name]
+        except KeyError:
+            raise
+        finally:
+            self.logger.debug('store.close()')
+            store.close()
+
+        return df
+
     def status_to_df(self):
         '''Read the data at status_url link and return it as a Pandas DataFrame.
         '''
@@ -81,43 +106,6 @@ class OxyFloat(object):
         df = pd.read_csv(StringIO(req.text[1:]))
         return df
 
-    def put_df(self, df, name, filename):
-        '''Save Pandas DataFrame to local storage.
-        '''
-        store = pd.HDFStore(filename)
-        self.logger.debug('Saving DataFrame to name {} in file {}'
-                                        .format(name, filename))
-        store[name] = df
-        self.logger.debug('store.close()')
-        store.close()
-
-    def get_df(self, name, filename):
-        '''Get Pandas DataFrame from local storage.
-        '''
-        store = pd.HDFStore(filename)
-        try:
-            self.logger.debug('Getting {} from {}'.format(name, filename))
-            df = store[name]
-        except KeyError:
-            raise
-        finally:
-            self.logger.debug('store.close()')
-            store.close()
-
-        return df
-
-    def write_status(self):
-        '''Read CSV Argo status data file from the Internet and cache
-        its conversion to a Pandas DataFrame in a local HDF cache file.
-        '''
-        self.put_df(self.status_to_df(), STATUS, self.cache_file)
-
-    def read_status(self):
-        '''Read CSV Argo status data from local cache and return as a
-        Pandas DataFrame.
-        '''
-        return self.get_df(STATUS, self.cache_file)
-
     def get_oxy_floats(self, age=340):
         '''Starting with listing of all floats determine which floats have an
         oxygen sensor, are not greylisted, and have more than a specified days
@@ -127,11 +115,11 @@ class OxyFloat(object):
             age (int): Restrict to floats with data >= age, defaults to 340
         '''
         try:
-            df = self.read_status()
+            df = self.get_df(STATUS)
         except KeyError:
-            self.logger.debug('Could not read status, calling write_status()')
-            self.write_status()
-            df = self.read_status()
+            self.logger.debug('Could not read status, putting it into the cache.')
+            self.put_df(self.status_to_df(), STATUS)
+            df = self.get_df(STATUS)
 
         # Select only the rows that have oxygen data, not greylisted, and > age
         fd_oxy = df.loc[df.loc[:, 'OXYGEN'] == 1, :]
@@ -161,18 +149,6 @@ class OxyFloat(object):
 
         return df
 
-    def write_global_meta(self):
-        '''Read CSV Argo status data file from the Internet and cache
-        its conversion to a Pandas DataFrame in a local HDF cache file.
-        '''
-        self.put_df(self.global_meta_to_df(), GLOBAL_META, self.cache_file)
-
-    def read_global_meta(self):
-        '''Read CSV Argo status data from local cache and return as a
-        Pandas DataFrame.
-        '''
-        return self.get_df(GLOBAL_META, self.cache_file)
-
     def get_dac_urls(self, desired_float_numbers):
         '''Return list of Data Assembly Centers where profile data are archived
 
@@ -180,11 +156,11 @@ class OxyFloat(object):
             desired_float_numbers (list[str]): List of strings of float numbers
         '''
         try:
-            df = self.read_global_meta()
+            df = self.get_df(GLOBAL_META)
         except KeyError:
-            self.logger.debug('Could not read global_meta, calling write_global_meta()')
-            self.write_global_meta()
-            df = self.read_global_meta()
+            self.logger.debug('Could not read global_meta, putting it into cache.')
+            self.put_df(self.global_meta_to_df(), GLOBAL_META)
+            df = self.get_df(GLOBAL_META)
 
         dac_urls = []
         for index,row in df.loc[:,['file']].iterrows():
