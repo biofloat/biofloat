@@ -106,6 +106,15 @@ class OxyFloat(object):
         df = pd.read_csv(StringIO(req.text[1:]))
         return df
 
+    def global_meta_to_df(self):
+        '''Read the data at global_url link and return it as a Pandas DataFrame.
+        '''
+        self.logger.info('Reading data from %s', self.global_url)
+        with closing(urllib2.urlopen(self.global_url)) as r:
+            df = pd.read_csv(r, comment='#')
+
+        return df
+
     def get_oxy_floats(self, age_gte=340):
         '''Starting with listing of all floats determine which floats have an
         oxygen sensor, are not greylisted, and have more than a specified days
@@ -139,15 +148,6 @@ class OxyFloat(object):
             oxy_floats.append(row['WMO'])
 
         return oxy_floats
-
-    def global_meta_to_df(self):
-        '''Read the data at global_url link and return it as a Pandas DataFrame.
-        '''
-        self.logger.info('Reading data from %s', self.global_url)
-        with closing(urllib2.urlopen(self.global_url)) as r:
-            df = pd.read_csv(r, comment='#')
-
-        return df
 
     def get_dac_urls(self, desired_float_numbers):
         '''Return list of Data Assembly Centers where profile data are archived
