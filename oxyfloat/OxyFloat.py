@@ -12,6 +12,7 @@ from pymongo import MongoClient
 from datetime import datetime, timedelta
 from thredds_crawler.crawl import Crawl
 from bs4 import BeautifulSoup
+from contextlib import closing
 
 # Support Python 2.7 and 3.x
 try:
@@ -23,6 +24,7 @@ from exceptions import RequiredVariableNotPresent, OpenDAPServerError
 
 # Literals for groups stored in local HDF file cache
 STATUS = 'status'
+GLOBAL_META = 'global_meta'
 
 class OxyFloat(object):
     '''Collection of methods for working with Argo profiling float data.
@@ -67,8 +69,7 @@ class OxyFloat(object):
             self.logger.setLevel(logging.DEBUG)
 
     def status_to_df(self):
-        '''Save the data at status_url link to a temporary .csv file 
-        and load into a Pandas DataFrame.  Returns that DataFrame.
+        '''Read the data at status_url link and return it as a Pandas DataFrame.
         '''
         self.logger.debug('Reading data from %s', self.status_url)
         req = requests.get(self.status_url)
@@ -86,14 +87,23 @@ class OxyFloat(object):
         self.logger.debug('Saving DataFrame to name {} in file {}'
                                         .format(name, filename))
         store[name] = df
+        self.logger.debug('store.close()')
         store.close()
 
     def get_df(self, name, filename):
         '''Get Pandas DataFrame from local storage.
         '''
         store = pd.HDFStore(filename)
-        df = store[name]
+        try:
+            self.logger.debug('Getting {} from {}'.format(name, filename))
+            df = store[name]
+        except KeyError:
+            self.logger.debug('store.close()')
+            store.close()
+            raise
+        self.logger.debug('store.close()')
         store.close()
+
         return df
 
     def write_status(self):
@@ -103,8 +113,8 @@ class OxyFloat(object):
         self.put_df(self.status_to_df(), STATUS, self.cache_file)
 
     def read_status(self):
-        '''Read CSV Argo status data from local cache.
-        Returns Pandas DataFrame.
+        '''Read CSV Argo status data from local cache and return as a
+        Pandas DataFrame.
         '''
         return self.get_df(STATUS, self.cache_file)
 
@@ -142,23 +152,42 @@ class OxyFloat(object):
 
         return oxy_floats
 
+    def global_meta_to_df(self):
+        '''Read the data at global_url link and return it as a Pandas DataFrame.
+        '''
+        self.logger.debug('Reading data from %s', self.global_url)
+        with closing(urllib2.urlopen(self.global_url)) as r:
+            df = pd.read_csv(r, comment='#')
+
+        return df
+
+    def write_global_meta(self):
+        '''Read CSV Argo status data file from the Internet and cache
+        its conversion to a Pandas DataFrame in a local HDF cache file.
+        '''
+        self.put_df(self.global_meta_to_df(), GLOBAL_META, self.cache_file)
+
+    def read_global_meta(self):
+        '''Read CSV Argo status data from local cache and return as a
+        Pandas DataFrame.
+        '''
+        return self.get_df(GLOBAL_META, self.cache_file)
+
     def get_dac_urls(self, desired_float_numbers):
         '''Return list of Data Assembly Centers where profile data are archived
 
         Args:
             desired_float_numbers (list[str]): List of strings of float numbers
         '''
-        global_meta = self.global_url
-        self.logger.debug('Reading data from %s', global_meta)
-        with open('gd1.csv', 'w') as f:
-            for row in urllib2.urlopen(global_meta):
-                f.write(row)
-
-        # Put into a Pandas DataFrame, because this is what we like to do now
-        gd_table = pd.read_csv('gd1.csv' , comment = '#')
+        try:
+            df = self.read_global_meta()
+        except KeyError:
+            self.logger.debug('Could not read global_meta, calling write_global_meta()')
+            self.write_global_meta()
+            df = self.read_global_meta()
 
         dac_urls = []
-        for index,row in gd_table.loc[:,['file']].iterrows():
+        for index,row in df.loc[:,['file']].iterrows():
             floatNum = row['file'].split('/')[1]
             if floatNum in desired_float_numbers:
                 url = self.thredds_url
@@ -264,21 +293,8 @@ class OxyFloat(object):
                 d = self.get_profile_data(profile_url, 
                         surface_values_only=surface_values_only)
                 pd.append({float: {prof: d}})
-            except RequiredVariableNotPresent as e:
-                self.logger.warn(e)
-            except OpenDAPServerError as e:
+            except (RequiredVariableNotPresent, OpenDAPServerError) as e:
                 self.logger.warn(e)
 
         return pd
-
-    def db_insert_float_data(self, float_data):
-        '''Insert/update document into Mongo database
-        '''
-        client = MongoClient()
-        db = client.oxyfloat
-        floats = db.floats
-
-        result = floats.insert_many(float_data)
-        self.logger.debug('IDs stored in mongodb floats database' + 
-                str(result.inserted_ids))
 
