@@ -2,7 +2,7 @@ language: python
 
 python:
   - "2.7"
-  #- "3.4"
+  - "3.4"
   - "3.5"
 
 before_install: 
@@ -13,10 +13,6 @@ before_install:
   - conda update --yes conda
   - export HDF5_DIR=/home/travis/miniconda/
   - conda install --yes hdf5
-  ##- pip install Pydap==3.1.1
-##install:
-  ##- conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib pandas hdf5
-  ##- pip install -r requirements.txt
 script:  
   - ./test.sh 
 after_script:
