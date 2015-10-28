@@ -8,7 +8,6 @@ import pandas as pd
 import pydap.client
 import pydap.exceptions
 
-from pymongo import MongoClient
 from datetime import datetime, timedelta
 from thredds_crawler.crawl import Crawl
 from bs4 import BeautifulSoup
