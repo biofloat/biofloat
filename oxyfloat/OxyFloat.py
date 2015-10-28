@@ -22,10 +22,6 @@ except ImportError:
 
 from exceptions import RequiredVariableNotPresent, OpenDAPServerError
 
-# Literals for groups stored in local HDF file cache
-STATUS = 'status'
-GLOBAL_META = 'global_meta'
-
 class OxyFloat(object):
     '''Collection of methods for working with Argo profiling float data.
     '''
@@ -38,6 +34,10 @@ class OxyFloat(object):
     ch.setFormatter(formatter)
     logger.addHandler(ch)
     log_levels = (logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG)
+
+    # Literals for groups stored in local HDF file cache
+    STATUS = 'status'
+    GLOBAL_META = 'global_meta'
 
     def __init__(self, verbosity=0, cache_file=None,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
@@ -69,12 +69,12 @@ class OxyFloat(object):
             parent_dir = os.path.join(os.path.dirname(__file__), "../")
             self.cache_file = os.path.join(parent_dir, 'oxyfloat_cache.hdf')
 
-    def put_df(self, df, name, filename):
+    def put_df(self, df, name):
         '''Save Pandas DataFrame to local storage.
         '''
-        store = pd.HDFStore(filename)
+        store = pd.HDFStore(self.cache_file)
         self.logger.debug('Saving DataFrame to name {} in file {}'
-                                        .format(name, filename))
+                                        .format(name, self.cache_file))
         store[name] = df
         self.logger.debug('store.close()')
         store.close()
@@ -115,11 +115,11 @@ class OxyFloat(object):
             age (int): Restrict to floats with data >= age, defaults to 340
         '''
         try:
-            df = self.get_df(STATUS)
+            df = self.get_df(self.STATUS)
         except KeyError:
             self.logger.debug('Could not read status, putting it into the cache.')
-            self.put_df(self.status_to_df(), STATUS)
-            df = self.get_df(STATUS)
+            self.put_df(self.status_to_df(), self.STATUS)
+            df = self.get_df(self.STATUS)
 
         # Select only the rows that have oxygen data, not greylisted, and > age
         fd_oxy = df.loc[df.loc[:, 'OXYGEN'] == 1, :]
@@ -156,11 +156,11 @@ class OxyFloat(object):
             desired_float_numbers (list[str]): List of strings of float numbers
         '''
         try:
-            df = self.get_df(GLOBAL_META)
+            df = self.get_df(self.GLOBAL_META)
         except KeyError:
             self.logger.debug('Could not read global_meta, putting it into cache.')
-            self.put_df(self.global_meta_to_df(), GLOBAL_META)
-            df = self.get_df(GLOBAL_META)
+            self.put_df(self.global_meta_to_df(), self.GLOBAL_META)
+            df = self.get_df(self.GLOBAL_META)
 
         dac_urls = []
         for index,row in df.loc[:,['file']].iterrows():
