@@ -61,3 +61,6 @@ target/
 
 # Temporary data files
 *.csv
+
+# Local cache file
+*.hdf
