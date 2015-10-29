@@ -10,6 +10,14 @@ quality control operations on oxygen data from [Argo ocean drifting profiling fl
 
 ##### Installation
 
+###### Bare-bones Unix
+
+    sudo yum -y install hdf scipy blas blas-devel lapack lapack-devel
+    pip install oxyfloat
+
+###### Anaconda or Canopy
+
+    pip install pydap
     pip install oxyfloat
 
 ##### Usage
