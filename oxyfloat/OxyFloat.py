@@ -64,8 +64,8 @@ class OxyFloat(object):
             self.cache_file = cache_file
         else:
             # Write to same directory where this module is installed
-            self.cache_file = os.path.join(os.path.dirname(__file__), 
-                                                'oxyfloat_cache.hdf')
+            self.cache_file = os.path.abspath(os.path.join(
+                              os.path.dirname(__file__), 'oxyfloat_cache.hdf'))
 
     def _put_df(self, df, name):
         '''Save Pandas DataFrame to local storage.
@@ -112,6 +112,41 @@ class OxyFloat(object):
             df = pd.read_csv(r, comment='#')
 
         return df
+
+    def _profile_to_dataframe(self, url):
+        '''Return a Pandas DataFrame of profiling float data from data at url.
+        '''
+        self.logger.debug('Opening %s', url)
+        ds = xray.open_dataset(url)
+        desired_vars = ('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
+                        'LATITUDE', 'LONGITUDE', 'JULD')
+
+        self.logger.debug('Checking %s for our desired variables', url)
+        for v in desired_vars:
+            if v not in ds.keys():
+                raise RequiredVariableNotPresent(url + ' missing ' + v)
+
+        # Make a table with variables as columns and PRES_ADJUSTED as rows
+        # Argo data have a N_PROF dimension always of length 1, hence the [0]
+        df = pd.DataFrame()
+        df.index.name = '{} ({})'.format('PRES_ADJUSTED', 
+                                         ds['PRES_ADJUSTED'].attrs['units'])
+        for v in desired_vars:
+            try:
+                s = pd.Series(ds[v].values[0], index=ds['PRES_ADJUSTED'].values[0])
+                n = '{} ({})'.format(v, ds[v].attrs['units'])
+                self.logger.debug('Added %s to DataFrame', n)
+                df[n] = s
+            except KeyError:
+                self.logger.warn('%s not in %s', v, url)
+
+        return df
+
+    def _url_to_naturalname(self, url):
+        '''Remove HDFStore illegal characters from url and return key string.
+        '''
+        regex = re.compile(r"[^a-zA-Z0-9_]")
+        return regex.sub('', url)
 
     def get_oxy_floats(self, age_gte=340):
         '''Starting with listing of all floats determine which floats have an
@@ -189,25 +224,27 @@ class OxyFloat(object):
         for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
             yield base_url + e['urlpath']
 
-    def get_profile_dataframe(self, url):
-        '''Return a Pandas DataFrame of profiling float data from data at url.
+    def get_float_dataframe(self, float_wmo):
+        '''Returns Pandas DataFrame for all the profile data from float_wmo.
+        Uses cached data if present, populates cache if not present.
         '''
-        self.logger.debug('Opening %s', url)
-        ds = xray.open_dataset(url)
-        desired_vars = ('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
-                        'LATITUDE', 'LONGITUDE', 'JULD')
-        self.logger.debug('Checking %s for our desired variables', url)
-        for v in desired_vars:
-            if v not in ds.keys():
-                raise RequiredVariableNotPresent(url + ' missing ' + v)
+        float_df = pd.DataFrame()
+        for dac_url in self.get_dac_urls([float_wmo]):
+            for url in self.get_profile_opendap_urls(dac_url):
+                key = self._url_to_naturalname(url)
+                try:
+                    df = self._get_df(key)
+                except KeyError:
+                    try:
+                        df = self._profile_to_dataframe(url)
+                        self._put_df(df, key)
+                        self.logger.debug(df.head())
+                    except RequiredVariableNotPresent:
+                        self.logger.warn('RequiredVariableNotPresent in %s', url)
+                        # Insert an empy DataFrame to mark this key as taken
+                        self._put_df(pd.DataFrame(), key)
 
-        # Make a table with variables as columns and PRES_ADJUSTED as rows
-        df = pd.DataFrame()
-        for v in desired_vars:
-            # Argo data have a N_PROF dimension always of length 1
-            self.logger.debug('Adding %s to DataFrame', v)
-            s = pd.Series(ds[v].values[0], index=ds['PRES_ADJUSTED'].values[0])
-            df[v] = s
+            float_df.append(df)
 
-        return df
+        return float_df
 
