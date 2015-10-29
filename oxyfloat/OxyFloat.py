@@ -1,24 +1,22 @@
 import os
 import re
-import sys
-import time
 import logging
 import urllib2
 import requests
 import pandas as pd
 import pydap.client
 import pydap.exceptions
+import xray
 
 from datetime import datetime, timedelta
-from thredds_crawler.crawl import Crawl
 from bs4 import BeautifulSoup
 from contextlib import closing
 
 # Support Python 2.7 and 3.x
 try:
-        from io import StringIO
+    from io import StringIO
 except ImportError:
-        from cStringIO import StringIO
+    from cStringIO import StringIO
 
 from exceptions import RequiredVariableNotPresent, OpenDAPServerError
 
@@ -69,22 +67,22 @@ class OxyFloat(object):
             self.cache_file = os.path.join(os.path.dirname(__file__), 
                                                 'oxyfloat_cache.hdf')
 
-    def put_df(self, df, name):
+    def _put_df(self, df, name):
         '''Save Pandas DataFrame to local storage.
         '''
         store = pd.HDFStore(self.cache_file)
-        self.logger.info('Saving DataFrame to name "{}" in file {}'
-                                        .format(name, self.cache_file))
+        self.logger.info('Saving DataFrame to name "%s" in file %s',
+                                            name, self.cache_file)
         store[name] = df
         self.logger.debug('store.close()')
         store.close()
 
-    def get_df(self, name):
+    def _get_df(self, name):
         '''Get Pandas DataFrame from local storage or raise KeyError.
         '''
         store = pd.HDFStore(self.cache_file)
         try:
-            self.logger.debug('Getting "{}" from {}'.format(name, self.cache_file))
+            self.logger.debug('Getting "%s" from %s', name, self.cache_file)
             df = store[name]
         except KeyError:
             raise
@@ -94,7 +92,7 @@ class OxyFloat(object):
 
         return df
 
-    def status_to_df(self):
+    def _status_to_df(self):
         '''Read the data at status_url link and return it as a Pandas DataFrame.
         '''
         self.logger.info('Reading data from %s', self.status_url)
@@ -106,7 +104,7 @@ class OxyFloat(object):
         df = pd.read_csv(StringIO(req.text[1:]))
         return df
 
-    def global_meta_to_df(self):
+    def _global_meta_to_df(self):
         '''Read the data at global_url link and return it as a Pandas DataFrame.
         '''
         self.logger.info('Reading data from %s', self.global_url)
@@ -124,11 +122,11 @@ class OxyFloat(object):
             age_gte (int): Restrict to floats with data >= age, defaults to 340
         '''
         try:
-            df = self.get_df(self.STATUS)
+            df = self._get_df(self.STATUS)
         except KeyError:
             self.logger.debug('Could not read status, putting it into the cache.')
-            self.put_df(self.status_to_df(), self.STATUS)
-            df = self.get_df(self.STATUS)
+            self._put_df(self._status_to_df(), self.STATUS)
+            df = self._get_df(self.STATUS)
 
         # Select only the rows that have oxygen data, not greylisted, and > age_gte
         fd_oxy = df.loc[df.loc[:, 'OXYGEN'] == 1, :]
@@ -140,11 +138,11 @@ class OxyFloat(object):
         # Use Pandas to merge these selections
         self.logger.debug('Merging oxygen, not greylisted, and age >= %s', age_gte)
         fd_merge = pd.merge(pd.merge(fd_oxy, fd_gl), fd_age)
-        self.logger.debug('len(fd_merge) = %d', len(fd_merge))
+        self.logger.debug('len(fd_merge) = %s', len(fd_merge))
 
         # Pull out only the float numbers and return a normal Python list of them
         oxy_floats = []
-        for index,row in fd_merge.loc[:,['WMO']].iterrows():
+        for _, row in fd_merge.loc[:,['WMO']].iterrows():
             oxy_floats.append(row['WMO'])
 
         return oxy_floats
@@ -156,14 +154,14 @@ class OxyFloat(object):
             desired_float_numbers (list[str]): List of strings of float numbers
         '''
         try:
-            df = self.get_df(self.GLOBAL_META)
+            df = self._get_df(self.GLOBAL_META)
         except KeyError:
             self.logger.debug('Could not read global_meta, putting it into cache.')
-            self.put_df(self.global_meta_to_df(), self.GLOBAL_META)
-            df = self.get_df(self.GLOBAL_META)
+            self._put_df(self._global_meta_to_df(), self.GLOBAL_META)
+            df = self._get_df(self.GLOBAL_META)
 
         dac_urls = []
-        for index,row in df.loc[:,['file']].iterrows():
+        for _, row in df.loc[:,['file']].iterrows():
             floatNum = row['file'].split('/')[1]
             if floatNum in desired_float_numbers:
                 url = self.thredds_url
@@ -171,7 +169,7 @@ class OxyFloat(object):
                 url += "/profiles/catalog.xml"
                 dac_urls.append(url)
 
-        self.logger.debug('Found %d dac_urls' % len(dac_urls))
+        self.logger.debug('Found %s dac_urls' % len(dac_urls))
 
         return dac_urls
 
