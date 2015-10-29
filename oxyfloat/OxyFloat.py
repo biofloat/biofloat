@@ -24,18 +24,23 @@ class OxyFloat(object):
     '''Collection of methods for working with Argo profiling float data.
     '''
 
-    logger = logging.getLogger(__name__)
-    ch = logging.StreamHandler()
+    # Jupyter Notebook defines a root logger, use that if it exists
+    if logging.getLogger().handlers:
+        _notebook_handler = logging.getLogger().handlers[0]
+        logger = logging.getLogger()
+    else:
+        logger = logging.getLogger(__name__)
+        _handler = logging.StreamHandler()
+        _formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s '
+                                      '%(funcName)s():%(lineno)d %(message)s')
+        _handler.setFormatter(_formatter)
+        logger.addHandler(_handler)
 
-    formatter = logging.Formatter('%(levelname)s %(asctime)s %(filename)s '
-                                  '%(funcName)s():%(lineno)d %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-    log_levels = (logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG)
+    _log_levels = (logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG)
 
     # Literals for groups stored in local HDF file cache
-    STATUS = 'status'
-    GLOBAL_META = 'global_meta'
+    _STATUS = 'status'
+    _GLOBAL_META = 'global_meta'
 
     def __init__(self, verbosity=0, cache_file=None,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
@@ -58,7 +63,7 @@ class OxyFloat(object):
         self.global_url = global_url
         self.thredds_url = thredds_url
 
-        self.logger.setLevel(self.log_levels[verbosity])
+        self.logger.setLevel(self._log_levels[verbosity])
 
         if cache_file:
             self.cache_file = cache_file
@@ -148,6 +153,12 @@ class OxyFloat(object):
         regex = re.compile(r"[^a-zA-Z0-9_]")
         return regex.sub('', url)
 
+    def set_verbosity(self, verbosity):
+        '''Change loglevel. 0: ERROR, 1: WARN, 2: INFO, 3:DEBUG
+        '''
+        self.logger.setLevel(self._log_levels[verbosity])
+
+
     def get_oxy_floats(self, age_gte=340):
         '''Starting with listing of all floats determine which floats have an
         oxygen sensor, are not greylisted, and have more than a specified days
@@ -157,11 +168,11 @@ class OxyFloat(object):
             age_gte (int): Restrict to floats with data >= age, defaults to 340
         '''
         try:
-            df = self._get_df(self.STATUS)
+            df = self._get_df(self._STATUS)
         except KeyError:
             self.logger.debug('Could not read status, putting it into the cache.')
-            self._put_df(self._status_to_df(), self.STATUS)
-            df = self._get_df(self.STATUS)
+            self._put_df(self._status_to_df(), self._STATUS)
+            df = self._get_df(self._STATUS)
 
         # Select only the rows that have oxygen data, not greylisted, and > age_gte
         fd_oxy = df.loc[df.loc[:, 'OXYGEN'] == 1, :]
@@ -189,11 +200,11 @@ class OxyFloat(object):
             desired_float_numbers (list[str]): List of strings of float numbers
         '''
         try:
-            df = self._get_df(self.GLOBAL_META)
+            df = self._get_df(self._GLOBAL_META)
         except KeyError:
             self.logger.debug('Could not read global_meta, putting it into cache.')
-            self._put_df(self._global_meta_to_df(), self.GLOBAL_META)
-            df = self._get_df(self.GLOBAL_META)
+            self._put_df(self._global_meta_to_df(), self._GLOBAL_META)
+            df = self._get_df(self._GLOBAL_META)
 
         dac_urls = []
         for _, row in df.loc[:,['file']].iterrows():
