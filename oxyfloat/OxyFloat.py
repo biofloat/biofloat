@@ -132,8 +132,8 @@ class OxyFloat(object):
         fd_oxy = df.loc[df.loc[:, 'OXYGEN'] == 1, :]
         fd_gl  = df.loc[df.loc[:, 'GREYLIST'] == 0 , :] 
         fd_age = df.loc[df.loc[:, 'AGE'] >= age_gte, :]
-        self.logger.debug('len(oxy) = %d, len(gl) = %d, len(age_gte) = %d' % 
-                (len(fd_oxy), len(fd_gl), len(fd_age))) 
+        self.logger.debug('len(oxy) = %d, len(gl) = %d, len(age_gte) = %d',
+                                        len(fd_oxy), len(fd_gl), len(fd_age)) 
 
         # Use Pandas to merge these selections
         self.logger.debug('Merging oxygen, not greylisted, and age >= %s', age_gte)
@@ -169,7 +169,7 @@ class OxyFloat(object):
                 url += "/profiles/catalog.xml"
                 dac_urls.append(url)
 
-        self.logger.debug('Found %s dac_urls' % len(dac_urls))
+        self.logger.debug('Found %s dac_urls', len(dac_urls))
 
         return dac_urls
 
@@ -215,7 +215,7 @@ class OxyFloat(object):
 
             lat = ds['LATITUDE'][0][0]
             lon = ds['LONGITUDE'][0][0]
-        except pydap.exceptions.ServerError as e:
+        except pydap.exceptions.ServerError:
             raise OpenDAPServerError("Can't read data from " + url)
 
         # Compute a datetime value for the profile
@@ -247,14 +247,14 @@ class OxyFloat(object):
                 if not profile_url.endswith(only_file):
                     continue
 
-            float = profile_url.split('/')[7]
+            flt = profile_url.split('/')[7]
             prof = str(profile_url.split('/')[-1].split('.')[0].split('_')[1])
             self.logger.info('Reading data from ' + profile_url[:20] + '...' +
                        profile_url[-50:])
             try:
                 d = self.get_profile_data(profile_url, 
                         surface_values_only=surface_values_only)
-                pd.append({float: {prof: d}})
+                pd.append({flt: {prof: d}})
             except (RequiredVariableNotPresent, OpenDAPServerError) as e:
                 self.logger.warn(e)
 
