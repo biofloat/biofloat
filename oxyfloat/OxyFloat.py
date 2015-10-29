@@ -119,7 +119,7 @@ class OxyFloat(object):
         self.logger.debug('Opening %s', url)
         ds = xray.open_dataset(url)
         desired_vars = ('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
-                        'LATITUDE', 'LONGITUDE', 'JULD')
+                        'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD')
 
         self.logger.debug('Checking %s for our desired variables', url)
         for v in desired_vars:
@@ -129,11 +129,11 @@ class OxyFloat(object):
         # Make a table with variables as columns and PRES_ADJUSTED as rows
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
         df = pd.DataFrame()
-        df.index.name = '{} ({})'.format('PRES_ADJUSTED', 
-                                         ds['PRES_ADJUSTED'].attrs['units'])
+        indices = ['{}_{}'.format(str(ds['JULD'].values[0]).split('.')[0], pres) 
+                                    for pres in ds['PRES_ADJUSTED'].values[0]]
         for v in desired_vars:
             try:
-                s = pd.Series(ds[v].values[0], index=ds['PRES_ADJUSTED'].values[0])
+                s = pd.Series(ds[v].values[0], index=indices)
                 n = '{} ({})'.format(v, ds[v].attrs['units'])
                 self.logger.debug('Added %s to DataFrame', n)
                 df[n] = s
@@ -244,7 +244,7 @@ class OxyFloat(object):
                         # Insert an empy DataFrame to mark this key as taken
                         self._put_df(pd.DataFrame(), key)
 
-            float_df.append(df)
+                float_df = float_df.append(df)
 
         return float_df
 
