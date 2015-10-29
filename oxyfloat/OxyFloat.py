@@ -174,8 +174,9 @@ class OxyFloat(object):
         return dac_urls
 
     def get_profile_opendap_urls(self, catalog_url):
-        '''Returns all the opendap urls to the profiles at catalog_url.
-        Implemented as a generator.
+        '''Returns an iterable to the opendap urls for the profiles in catalog.
+        The `catalog_url` is the .xml link for a directory on a THREDDS Data 
+        Server.
         '''
         self.logger.debug("Parsing %s", catalog_url)
         req = requests.get(catalog_url)
@@ -188,75 +189,25 @@ class OxyFloat(object):
         for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
             yield base_url + e['urlpath']
 
-    def get_profile_data(self, url, surface_values_only=False):
-        '''Return a dictionary of tuples of lists of variables and their 
-        attributes.
+    def get_profile_dataframe(self, url):
+        '''Return a Pandas DataFrame of profiling float data from data at url.
         '''
         self.logger.debug('Opening %s', url)
-        ds = pydap.client.open_url(url)
-        self.logger.debug('Checking %s', url)
-        for v in ('PRES_ADJUSTED', 'TEMP_ADJUSTED', 'PSAL_ADJUSTED',
-                'DOXY_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'):
+        ds = xray.open_dataset(url)
+        desired_vars = ('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
+                        'LATITUDE', 'LONGITUDE', 'JULD')
+        self.logger.debug('Checking %s for our desired variables', url)
+        for v in desired_vars:
             if v not in ds.keys():
                 raise RequiredVariableNotPresent(url + ' missing ' + v)
 
-        # Extract data casting numpy arrays into normal Python lists
-        try:
-            if surface_values_only:
-                p = ds['PRES_ADJUSTED'][0][0][0].tolist()
-                t = ds['TEMP_ADJUSTED'][0][0][0].tolist()
-                s = ds['PSAL_ADJUSTED'][0][0][0].tolist()
-                o = ds['DOXY_ADJUSTED'][0][0][0].tolist()
-            else:
-                p = ds['PRES_ADJUSTED'][0][0].tolist()
-                t = ds['TEMP_ADJUSTED'][0][0].tolist()
-                s = ds['PSAL_ADJUSTED'][0][0].tolist()
-                o = ds['DOXY_ADJUSTED'][0][0].tolist()
+        # Make a table with variables as columns and PRES_ADJUSTED as rows
+        df = pd.DataFrame()
+        for v in desired_vars:
+            # Argo data have a N_PROF dimension always of length 1
+            self.logger.debug('Adding %s to DataFrame', v)
+            s = pd.Series(ds[v].values[0], index=ds['PRES_ADJUSTED'].values[0])
+            df[v] = s
 
-            lat = ds['LATITUDE'][0][0]
-            lon = ds['LONGITUDE'][0][0]
-        except pydap.exceptions.ServerError:
-            raise OpenDAPServerError("Can't read data from " + url)
-
-        # Compute a datetime value for the profile
-        dt = datetime.strptime(ds['REFERENCE_DATE_TIME'][:], '%Y%m%d%H%M%S')
-        dt += timedelta(days=ds['JULD'][0][0])
-
-        # Build a data structure that includes metadata for each variable
-        pd = {'p': [ds['PRES_ADJUSTED'].attributes, p],
-              't': [ds['TEMP_ADJUSTED'].attributes, t],
-              's': [ds['PSAL_ADJUSTED'].attributes, s],
-              'o': [ds['DOXY_ADJUSTED'].attributes, o],
-              'lat': [ds['LATITUDE'].attributes, lat],
-              'lon': [ds['LONGITUDE'].attributes, lon],
-              'dt': [{'name': 'time', 'units': 'UTC'}, dt]}
-                  
-        return pd
-
-    def get_data_for_float(self, dac_url, only_file=None, 
-            surface_values_only=False):
-        '''Given a dac_url return a list of hashes of data for each 
-        profile for the float specified in dac_url.  Example dac_url
-        for float 1900722:
-
-        http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBSaoml/1900722/profiles/catalog.xml
-        '''
-        pd = []
-        for profile_url in sorted(self.get_profile_opendap_urls(dac_url)):
-            if only_file:
-                if not profile_url.endswith(only_file):
-                    continue
-
-            flt = profile_url.split('/')[7]
-            prof = str(profile_url.split('/')[-1].split('.')[0].split('_')[1])
-            self.logger.info('Reading data from ' + profile_url[:20] + '...' +
-                       profile_url[-50:])
-            try:
-                d = self.get_profile_data(profile_url, 
-                        surface_values_only=surface_values_only)
-                pd.append({flt: {prof: d}})
-            except (RequiredVariableNotPresent, OpenDAPServerError) as e:
-                self.logger.warn(e)
-
-        return pd
+        return df
 
