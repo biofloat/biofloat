@@ -1,6 +1,7 @@
 beautifulsoup4==4.4.1
 coverage==3.7.1
 jupyter==1.0.0
+matplotlib==1.4.3
 pandas==0.17.0
 Pydap==3.1.1
 python-coveralls==2.4.1
