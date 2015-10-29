@@ -29,15 +29,15 @@ class DataTest(unittest.TestCase):
             self.profile_url = profile_url
             break
 
-    def _get_profile_dataframe(self):
-        d = self.of.get_profile_dataframe(self.profile_url)
+    def _profile_to_dataframe(self):
+        d = self.of._profile_to_dataframe(self.profile_url)
         self.assertNotEqual(len(d), 0)
 
     def test_read_profile_data(self):
         # Methods need to be called in order
         self._get_dac_urls()
         self._get_profile_opendap_urls()
-        self._get_profile_dataframe()
+        self._profile_to_dataframe()
 
 
 if __name__ == '__main__':
