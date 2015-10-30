@@ -145,8 +145,6 @@ class OxyFloat(object):
         for v in self.variables:
             try:
                 s = pd.Series(ds[v].values[0], index=indices)
-                ##n = '{} ({})'.format(v, ds[v].attrs['units'])
-                ##self.logger.debug('Added %s to DataFrame', n)
                 self.logger.debug('Added %s to DataFrame', v)
                 df[v] = s
             except KeyError:
@@ -187,7 +185,7 @@ class OxyFloat(object):
         return odf.ix[:, 'WMO'].tolist()
 
     def get_dac_urls(self, desired_float_numbers):
-        '''Return list of Data Assembly Centers where profile data are archived.
+        '''Return dictionary of Data Assembly Centers keyed by wmo number.
 
         Args:
             desired_float_numbers (list[str]): List of strings of float numbers
@@ -199,14 +197,14 @@ class OxyFloat(object):
             self._put_df(self._global_meta_to_df(), self._GLOBAL_META)
             df = self._get_df(self._GLOBAL_META)
 
-        dac_urls = []
+        dac_urls = {}
         for _, row in df.loc[:,['file']].iterrows():
             floatNum = row['file'].split('/')[1]
             if floatNum in desired_float_numbers:
                 url = self.thredds_url
                 url += '/'.join(row['file'].split('/')[:2])
                 url += "/profiles/catalog.xml"
-                dac_urls.append(url)
+                dac_urls[floatNum] = url
 
         self.logger.debug('Found %s dac_urls', len(dac_urls))
 
@@ -228,14 +226,14 @@ class OxyFloat(object):
         for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
             yield base_url + e['urlpath']
 
-    def get_float_dataframe(self, wmo, max_profiles=1e10):
-        '''Returns Pandas DataFrame for all the profile data from wmo.
+    def get_float_dataframe(self, wmo_list, max_profiles=1e10):
+        '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
         will be returned, this is useful for testing.
         '''
         float_df = pd.DataFrame()
-        for dac_url in self.get_dac_urls([wmo]):
+        for wmo, dac_url in self.get_dac_urls(wmo_list).iteritems():
             for i, url in enumerate(self.get_profile_opendap_urls(dac_url)):
                 if i > max_profiles:
                     self.logger.info('Stopping after %s profiles', i)
