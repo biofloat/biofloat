@@ -11,15 +11,15 @@ from oxyfloat import OxyFloat
 class DataTest(unittest.TestCase):
     def setUp(self):
         self.of = OxyFloat(verbosity=2)
+        self.one_oga_floats = ['1900650']
 
     def test_get_oxyfloats(self):
-        self.oga_floats = self.of.get_oxy_floats()
+        self.oga_floats = self.of.get_oxy_floats_from_status()
         self.assertNotEqual(len(self.oga_floats), 0)
 
     def _get_dac_urls(self):
         # Testing with a float that has data
-        oga_floats = ['1900650']
-        for dac_url in self.of.get_dac_urls(oga_floats):
+        for dac_url in self.of.get_dac_urls(self.one_oga_floats):
             self.dac_url = dac_url
             self.assertTrue(self.dac_url.startswith('http'))
             break
@@ -30,7 +30,8 @@ class DataTest(unittest.TestCase):
             break
 
     def _profile_to_dataframe(self):
-        d = self.of._profile_to_dataframe(self.profile_url)
+        d = self.of._profile_to_dataframe(self.one_oga_floats[0], 
+                self.profile_url)
         self.assertNotEqual(len(d), 0)
 
     def test_read_profile_data(self):
