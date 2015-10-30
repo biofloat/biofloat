@@ -8,19 +8,21 @@ oxyfloat
 oxyfloat is a Python module designed to enable oceanographers to perform
 quality control operations on oxygen data from [Argo ocean drifting profiling floats](https://en.wikipedia.org/wiki/Argo_(oceanography)).
 
-##### Installation
+#### Installation
 
-###### Bare-bones Unix
+##### Bare-bones Unix
 
     sudo yum -y install hdf scipy blas blas-devel lapack lapack-devel
     pip install oxyfloat
 
-###### Anaconda or Canopy
+##### Anaconda or Canopy
 
     pip install pydap
     pip install oxyfloat
 
-##### Usage
+For plotting data on a map [basemap needs to be installed](http://matplotlib.org/basemap/users/installing.html).
+
+#### Usage
 
 See example [Jupyter Notebooks](notebooks) and [scripts](scripts) that demonstrate specific analyses and 
 visualizations.
