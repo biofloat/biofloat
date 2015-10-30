@@ -45,9 +45,11 @@ class OxyFloat(object):
     def __init__(self, verbosity=0, cache_file=None,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
-            thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS'):
+            thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS',
+            variables=['TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
+                       'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD']):
 
-        '''Initialize OxyFloat object
+        '''Initialize OxyFloat object.
         
         Args:
             verbosity (int): range(4), default=0
@@ -58,6 +60,7 @@ class OxyFloat(object):
                 ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt
             thredds_url (str): Base URL for THREDDS Data Server, defaults to
                 http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS
+            variables (list): Variables to extract from NetCDF files
         '''
         self.status_url = status_url
         self.global_url = global_url
@@ -73,7 +76,7 @@ class OxyFloat(object):
                               os.path.dirname(__file__), 'oxyfloat_cache.hdf'))
 
     def _put_df(self, df, name):
-        '''Save Pandas DataFrame to local storage.
+        '''Save Pandas DataFrame to local HDF file.
         '''
         store = pd.HDFStore(self.cache_file)
         self.logger.info('Saving DataFrame to name "%s" in file %s',
@@ -83,7 +86,7 @@ class OxyFloat(object):
         store.close()
 
     def _get_df(self, name):
-        '''Get Pandas DataFrame from local storage or raise KeyError.
+        '''Get Pandas DataFrame from local HDF file or raise KeyError.
         '''
         store = pd.HDFStore(self.cache_file)
         try:
@@ -118,7 +121,7 @@ class OxyFloat(object):
 
         return df
 
-    def _profile_to_dataframe(self, url):
+    def _profile_to_dataframe(self, wmo, url):
         '''Return a Pandas DataFrame of profiling float data from data at url.
         '''
         self.logger.debug('Opening %s', url)
@@ -134,8 +137,11 @@ class OxyFloat(object):
         # Make a table with variables as columns and PRES_ADJUSTED as rows
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
         df = pd.DataFrame()
-        indices = ['{}_{}'.format(str(ds['JULD'].values[0]).split('.')[0], pres) 
+
+        tuples = [(wmo, str(ds['JULD'].values[0]).split('.')[0], round(pres, 1))
                                     for pres in ds['PRES_ADJUSTED'].values[0]]
+        indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 'depth'])
+
         for v in self.variables:
             try:
                 s = pd.Series(ds[v].values[0], index=indices)
@@ -155,11 +161,11 @@ class OxyFloat(object):
         return regex.sub('', url)
 
     def set_verbosity(self, verbosity):
-        '''Change loglevel. 0: ERROR, 1: WARN, 2: INFO, 3:DEBUG
+        '''Change loglevel. 0: ERROR, 1: WARN, 2: INFO, 3:DEBUG.
         '''
         self.logger.setLevel(self._log_levels[verbosity])
 
-    def get_oxy_floats(self, age_gte=340):
+    def get_oxy_floats_from_status(self, age_gte=340):
         '''Return a Pandas Series of floats that are identified to have oxygen,
         are not greylisted, and have an age greater or equal to age_gte. 
 
@@ -181,7 +187,7 @@ class OxyFloat(object):
         return odf.ix[:, 'WMO'].tolist()
 
     def get_dac_urls(self, desired_float_numbers):
-        '''Return list of Data Assembly Centers where profile data are archived
+        '''Return list of Data Assembly Centers where profile data are archived.
 
         Args:
             desired_float_numbers (list[str]): List of strings of float numbers
@@ -222,14 +228,14 @@ class OxyFloat(object):
         for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
             yield base_url + e['urlpath']
 
-    def get_float_dataframe(self, float_wmo, max_profiles=1e10):
-        '''Returns Pandas DataFrame for all the profile data from float_wmo.
+    def get_float_dataframe(self, wmo, max_profiles=1e10):
+        '''Returns Pandas DataFrame for all the profile data from wmo.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
         will be returned, this is useful for testing.
         '''
         float_df = pd.DataFrame()
-        for dac_url in self.get_dac_urls([float_wmo]):
+        for dac_url in self.get_dac_urls([wmo]):
             for i, url in enumerate(self.get_profile_opendap_urls(dac_url)):
                 if i > max_profiles:
                     self.logger.info('Stopping after %s profiles', i)
@@ -239,7 +245,7 @@ class OxyFloat(object):
                     df = self._get_df(key)
                 except KeyError:
                     try:
-                        df = self._profile_to_dataframe(url)
+                        df = self._profile_to_dataframe(wmo, url)
                         self._put_df(df, key)
                         self.logger.debug(df.head())
                     except RequiredVariableNotPresent:
