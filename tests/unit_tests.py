@@ -10,7 +10,7 @@ from oxyfloat import OxyFloat
 
 class DataTest(unittest.TestCase):
     def setUp(self):
-        self.of = OxyFloat(verbosity=0)
+        self.of = OxyFloat(verbosity=2)
 
     def test_get_oxyfloats(self):
         self.oga_floats = self.of.get_oxy_floats()
@@ -39,6 +39,9 @@ class DataTest(unittest.TestCase):
         self._get_profile_opendap_urls()
         self._profile_to_dataframe()
 
+    def test_get_float_dataframe(self):
+        df = self.of.get_float_dataframe('1900650', 2)
+        self.assertNotEqual(len(df), 0)
 
 if __name__ == '__main__':
     unittest.main()
