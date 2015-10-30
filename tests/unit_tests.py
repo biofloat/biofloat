@@ -11,7 +11,8 @@ from oxyfloat import OxyFloat
 class DataTest(unittest.TestCase):
     def setUp(self):
         self.of = OxyFloat(verbosity=2)
-        self.one_oga_floats = ['1900650']
+        self.good_oga_floats = ['1900650']
+        self.bad_oga_floats = ['1901158']
 
     def test_get_oxyfloats(self):
         self.oga_floats = self.of.get_oxy_floats_from_status()
@@ -19,7 +20,7 @@ class DataTest(unittest.TestCase):
 
     def _get_dac_urls(self):
         # Testing with a float that has data
-        for dac_url in self.of.get_dac_urls(self.one_oga_floats):
+        for dac_url in self.of.get_dac_urls(self.good_oga_floats).values():
             self.dac_url = dac_url
             self.assertTrue(self.dac_url.startswith('http'))
             break
@@ -30,7 +31,7 @@ class DataTest(unittest.TestCase):
             break
 
     def _profile_to_dataframe(self):
-        d = self.of._profile_to_dataframe(self.one_oga_floats[0], 
+        d = self.of._profile_to_dataframe(self.good_oga_floats[0], 
                 self.profile_url)
         self.assertNotEqual(len(d), 0)
 
@@ -41,8 +42,10 @@ class DataTest(unittest.TestCase):
         self._profile_to_dataframe()
 
     def test_get_float_dataframe(self):
-        df = self.of.get_float_dataframe('1900650', 2)
+        df = self.of.get_float_dataframe(self.good_oga_floats, 2)
         self.assertNotEqual(len(df), 0)
+        df = self.of.get_float_dataframe(self.bad_oga_floats, 2)
+        self.assertEqual(len(df), 0)
 
 if __name__ == '__main__':
     unittest.main()
