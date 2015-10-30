@@ -123,8 +123,8 @@ class OxyFloat(object):
         '''
         self.logger.debug('Opening %s', url)
         ds = xray.open_dataset(url)
-        desired_vars = ('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
-                        'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD')
+        self.variables = ('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
+                          'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD')
 
         self.logger.debug('Checking %s for our desired variables', url)
         for v in desired_vars:
@@ -136,12 +136,13 @@ class OxyFloat(object):
         df = pd.DataFrame()
         indices = ['{}_{}'.format(str(ds['JULD'].values[0]).split('.')[0], pres) 
                                     for pres in ds['PRES_ADJUSTED'].values[0]]
-        for v in desired_vars:
+        for v in self.variables:
             try:
                 s = pd.Series(ds[v].values[0], index=indices)
-                n = '{} ({})'.format(v, ds[v].attrs['units'])
-                self.logger.debug('Added %s to DataFrame', n)
-                df[n] = s
+                ##n = '{} ({})'.format(v, ds[v].attrs['units'])
+                ##self.logger.debug('Added %s to DataFrame', n)
+                self.logger.debug('Added %s to DataFrame', v)
+                df[v] = s
             except KeyError:
                 self.logger.warn('%s not in %s', v, url)
 
@@ -158,11 +159,9 @@ class OxyFloat(object):
         '''
         self.logger.setLevel(self._log_levels[verbosity])
 
-
     def get_oxy_floats(self, age_gte=340):
-        '''Starting with listing of all floats determine which floats have an
-        oxygen sensor, are not greylisted, and have more than a specified days
-        of data. Returns a list of float number strings.
+        '''Return a Pandas Series of floats that are identified to have oxygen,
+        are not greylisted, and have an age greater or equal to age_gte. 
 
         Args:
             age_gte (int): Restrict to floats with data >= age, defaults to 340
@@ -170,28 +169,16 @@ class OxyFloat(object):
         try:
             df = self._get_df(self._STATUS)
         except KeyError:
-            self.logger.debug('Could not read status, putting it into the cache.')
+            self.logger.debug('Could not read status from cache, loading it.')
             self._put_df(self._status_to_df(), self._STATUS)
             df = self._get_df(self._STATUS)
 
         # Select only the rows that have oxygen data, not greylisted, and > age_gte
-        fd_oxy = df.loc[df.loc[:, 'OXYGEN'] == 1, :]
-        fd_gl  = df.loc[df.loc[:, 'GREYLIST'] == 0 , :] 
-        fd_age = df.loc[df.loc[:, 'AGE'] >= age_gte, :]
-        self.logger.debug('len(oxy) = %d, len(gl) = %d, len(age_gte) = %d',
-                                        len(fd_oxy), len(fd_gl), len(fd_age)) 
+        odf = df.loc[(df.loc[:, 'OXYGEN'] == 1) & 
+                     (df.loc[:, 'GREYLIST'] == 0) & 
+                     (df.loc[:, 'AGE'] > age_gte), :]
 
-        # Use Pandas to merge these selections
-        self.logger.debug('Merging oxygen, not greylisted, and age >= %s', age_gte)
-        fd_merge = pd.merge(pd.merge(fd_oxy, fd_gl), fd_age)
-        self.logger.debug('len(fd_merge) = %s', len(fd_merge))
-
-        # Pull out only the float numbers and return a normal Python list of them
-        oxy_floats = []
-        for _, row in fd_merge.loc[:,['WMO']].iterrows():
-            oxy_floats.append(row['WMO'])
-
-        return oxy_floats
+        return odf.ix[:, 'WMO'].tolist()
 
     def get_dac_urls(self, desired_float_numbers):
         '''Return list of Data Assembly Centers where profile data are archived
@@ -235,13 +222,18 @@ class OxyFloat(object):
         for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
             yield base_url + e['urlpath']
 
-    def get_float_dataframe(self, float_wmo):
+    def get_float_dataframe(self, float_wmo, max_profiles=1e10):
         '''Returns Pandas DataFrame for all the profile data from float_wmo.
-        Uses cached data if present, populates cache if not present.
+        Uses cached data if present, populates cache if not present.  If 
+        max_profiles is set to a number then data from only those profiles
+        will be returned, this is useful for testing.
         '''
         float_df = pd.DataFrame()
         for dac_url in self.get_dac_urls([float_wmo]):
-            for url in self.get_profile_opendap_urls(dac_url):
+            for i, url in enumerate(self.get_profile_opendap_urls(dac_url)):
+                if i > max_profiles:
+                    self.logger.info('Stopping after %s profiles', i)
+                    break
                 key = self._url_to_naturalname(url)
                 try:
                     df = self._get_df(key)
