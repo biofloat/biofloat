@@ -127,7 +127,7 @@ class OxyFloat(object):
                           'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD')
 
         self.logger.debug('Checking %s for our desired variables', url)
-        for v in desired_vars:
+        for v in self.variables:
             if v not in ds.keys():
                 raise RequiredVariableNotPresent(url + ' missing ' + v)
 
