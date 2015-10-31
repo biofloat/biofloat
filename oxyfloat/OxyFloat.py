@@ -8,7 +8,6 @@ import pydap.client
 import pydap.exceptions
 import xray
 
-from datetime import datetime
 from bs4 import BeautifulSoup
 from contextlib import closing
 from requests.exceptions import ConnectionError
@@ -44,14 +43,14 @@ class OxyFloat(object):
     _GLOBAL_META = 'global_meta'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
     _MAX_PROFILES = 10000000000
-    _cache_file_fmt = 'oxyfloat_age_{}_max_profiles_{:d}.hdf'
+    cache_file_fmt = 'oxyfloat_age_{}_max_profiles_{:d}.hdf'
 
     def __init__(self, verbosity=0, cache_file=None,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS',
-            variables=['TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
-                       'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD']):
+            variables=('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
+                       'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD')):
 
         '''Initialize OxyFloat object.
         

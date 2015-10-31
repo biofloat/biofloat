@@ -14,7 +14,7 @@ class OxyFloatLoader(object):
             cache_file = self.args.cache_file
         else:
             cache_file = os.path.abspath(os.path.join(parent_dir, 'oxyfloat',
-                OxyFloat._cache_file_fmt.format(
+                OxyFloat.cache_file_fmt.format(
                         self.args.age, self.args.max_profiles)))
 
         of = OxyFloat(verbosity=self.args.verbose, cache_file=cache_file)
@@ -34,7 +34,7 @@ class OxyFloatLoader(object):
                     description='Script to load local HDF cache with Argo float data.\n'
                                 'Default cache file is located in oxyfloat module\n'
                                 'directory named with age and max_profiles numbers\n'
-                                'with format {}.'.format(OxyFloat._cache_file_fmt),
+                                'with format {}.'.format(OxyFloat.cache_file_fmt),
                     epilog=examples)
                                              
         parser.add_argument('--age', action='store', type=int, default=340,
