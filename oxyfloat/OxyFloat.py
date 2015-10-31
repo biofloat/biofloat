@@ -43,13 +43,15 @@ class OxyFloat(object):
     _STATUS = 'status'
     _GLOBAL_META = 'global_meta'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
+    _MAX_PROFILES = 10000000000
+    _cache_file_fmt = 'oxyfloat_age_{}_max_profiles_{:d}.hdf'
 
     def __init__(self, verbosity=0, cache_file=None,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS',
-            variables={'TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
-                       'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}):
+            variables=['TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
+                       'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD']):
 
         '''Initialize OxyFloat object.
         
@@ -67,11 +69,12 @@ class OxyFloat(object):
         self.status_url = status_url
         self.global_url = global_url
         self.thredds_url = thredds_url
-        self.variables = variables
+        self.variables = set(variables)
 
         self.logger.setLevel(self._log_levels[verbosity])
 
         if cache_file:
+            self.cache_file_requested = cache_file
             self.cache_file = cache_file
         else:
             # Write to same directory where this module is installed
@@ -82,7 +85,7 @@ class OxyFloat(object):
         '''Save Pandas DataFrame to local HDF file.
         '''
         store = pd.HDFStore(self.cache_file)
-        self.logger.debug('Saving DataFrame to name "%s" in file %s',
+        self.logger.info('Saving DataFrame to name "%s" in file %s',
                                             name, self.cache_file)
         store[name] = df
         self.logger.debug('store.close()')
@@ -243,15 +246,39 @@ class OxyFloat(object):
 
         return urls
 
-    def get_float_dataframe(self, wmo_list, max_profiles=10000000000):
+    def _adjust_max_profiles(self, max_profiles):
+        '''Adjust max_profiles setting based on cache_file being used
+        so as not to cause downloading of additional unwanted data.
+        Returns potentially adjusted max_profiles
+        '''
+        adjusted_max_profiles = max_profiles
+        try:
+            cache_file_max = int(
+                    self.cache_file_requested.split('_')[-1].split('.')[0])
+            if max_profiles > cache_file_max:
+                self.logger.warn("Requested max_profiles %s exceeds requested "
+                        "cache file's: %s", max_profiles, cache_file_max)
+                self.logger.info("Setting max_profiles to %s", cache_file_max)
+                adjusted_max_profiles = cache_file_max
+        except AttributeError:
+            pass
+
+        return adjusted_max_profiles
+
+    def get_float_dataframe(self, wmo_list, max_profiles=None):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
         will be returned, this is useful for testing.
         '''
+        if max_profiles:
+            max_profiles = self._adjust_max_profiles(max_profiles)
+        else:
+            max_profiles = self._MAX_PROFILES
+
         float_df = pd.DataFrame()
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
-            self.logger.info('Float %s of %s', f, len(wmo_list))
+            self.logger.info('Float %s of %s, wmo = %s', f + 1, len(wmo_list), wmo)
             opendap_urls = self.get_profile_opendap_urls(dac_url)
             for i, url in enumerate(opendap_urls):
                 if i > max_profiles:
