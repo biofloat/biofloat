@@ -8,9 +8,10 @@ import pydap.client
 import pydap.exceptions
 import xray
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from bs4 import BeautifulSoup
 from contextlib import closing
+from requests.exceptions import ConnectionError
 
 # Support Python 2.7 and 3.x
 try:
@@ -18,7 +19,7 @@ try:
 except ImportError:
     from cStringIO import StringIO
 
-from exceptions import RequiredVariableNotPresent, OpenDAPServerError
+from exceptions import RequiredVariableNotPresent
 
 class OxyFloat(object):
     '''Collection of methods for working with Argo profiling float data.
@@ -65,6 +66,7 @@ class OxyFloat(object):
         self.status_url = status_url
         self.global_url = global_url
         self.thredds_url = thredds_url
+        self.variables = variables
 
         self.logger.setLevel(self._log_levels[verbosity])
 
@@ -126,8 +128,6 @@ class OxyFloat(object):
         '''
         self.logger.debug('Opening %s', url)
         ds = xray.open_dataset(url)
-        self.variables = ('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
-                          'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD')
 
         self.logger.debug('Checking %s for our desired variables', url)
         for v in self.variables:
