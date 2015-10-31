@@ -42,13 +42,14 @@ class OxyFloat(object):
     # Literals for groups stored in local HDF file cache
     _STATUS = 'status'
     _GLOBAL_META = 'global_meta'
+    _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
 
     def __init__(self, verbosity=0, cache_file=None,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS',
-            variables=['TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
-                       'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD']):
+            variables={'TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
+                       'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}):
 
         '''Initialize OxyFloat object.
         
@@ -81,7 +82,7 @@ class OxyFloat(object):
         '''Save Pandas DataFrame to local HDF file.
         '''
         store = pd.HDFStore(self.cache_file)
-        self.logger.info('Saving DataFrame to name "%s" in file %s',
+        self.logger.debug('Saving DataFrame to name "%s" in file %s',
                                             name, self.cache_file)
         store[name] = df
         self.logger.debug('store.close()')
@@ -134,15 +135,16 @@ class OxyFloat(object):
             if v not in ds.keys():
                 raise RequiredVariableNotPresent(url + ' missing ' + v)
 
-        # Make a table with variables as columns and PRES_ADJUSTED as rows
+        # Make a DataFrame with a hierarchical index for better efficiency
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
+        tuples = [(wmo, str(ds['JULD'].values[0]).split('.')[0], 
+                        ds['LONGITUDE'].values[0], ds['LATITUDE'].values[0], 
+                        round(pres, 1))
+                                for pres in ds['PRES_ADJUSTED'].values[0]]
+        indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 
+                                                    'lon', 'lat', 'depth'])
         df = pd.DataFrame()
-
-        tuples = [(wmo, str(ds['JULD'].values[0]).split('.')[0], round(pres, 1))
-                                    for pres in ds['PRES_ADJUSTED'].values[0]]
-        indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 'depth'])
-
-        for v in self.variables:
+        for v in self.variables ^ self._coordinates:
             try:
                 s = pd.Series(ds[v].values[0], index=indices)
                 self.logger.debug('Added %s to DataFrame', v)
@@ -179,12 +181,16 @@ class OxyFloat(object):
             self._put_df(self._status_to_df(), self._STATUS)
             df = self._get_df(self._STATUS)
 
-        # Select only the rows that have oxygen data, not greylisted, and > age_gte
-        odf = df.loc[(df.loc[:, 'OXYGEN'] == 1) & 
-                     (df.loc[:, 'GREYLIST'] == 0) & 
-                     (df.loc[:, 'AGE'] > age_gte), :]
+        odf = df.query('(OXYGEN == 1) & (GREYLIST == 0) & (AGE != 0) & '
+                       '(AGE >= {:d})'.format(age_gte))
 
-        return odf.ix[:, 'WMO'].tolist()
+        return odf['WMO'].tolist()
+
+        #odf = df.loc[(df.loc[:, 'OXYGEN'] == 1) & 
+        #             (df.loc[:, 'GREYLIST'] == 0) & 
+        #             (df.loc[:, 'AGE'] > age_gte), :]
+
+        #return odf.ix[:, 'WMO'].tolist()
 
     def get_dac_urls(self, desired_float_numbers):
         '''Return dictionary of Data Assembly Centers keyed by wmo number.
@@ -256,7 +262,8 @@ class OxyFloat(object):
                     df = self._get_df(key)
                 except KeyError:
                     try:
-                        self.logger.info('Profile %s of %s', i, len(opendap_urls))
+                        self.logger.info('Profile %s of %s from %s', 
+                                                  i, len(opendap_urls), url)
                         df = self._profile_to_dataframe(wmo, url)
                         self._put_df(df, key)
                         self.logger.debug(df.head())
