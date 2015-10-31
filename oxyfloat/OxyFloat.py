@@ -215,21 +215,27 @@ class OxyFloat(object):
         The `catalog_url` is the .xml link for a directory on a THREDDS Data 
         Server.
         '''
-        self.logger.debug("Parsing %s", catalog_url)
-        req = requests.get(catalog_url)
+        urls = []
+        try:
+            self.logger.debug("Parsing %s", catalog_url)
+            req = requests.get(catalog_url)
+        except ConnectionError as e:
+            self.logger.error('Cannot open catalog_url = %s', catalog_url)
+            self.logger.exception(e)
+            return urls
+
         soup = BeautifulSoup(req.text, 'html.parser')
 
         # Expect that this is a standard TDS with dodsC used for OpenDAP
         base_url = '/'.join(catalog_url.split('/')[:4]) + '/dodsC/'
 
         # Pull out <dataset ... urlPath='...nc'> attributes from the XML
-        urls = []
         for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
             urls.append(base_url + e['urlpath'])
 
         return urls
 
-    def get_float_dataframe(self, wmo_list, max_profiles=1e10):
+    def get_float_dataframe(self, wmo_list, max_profiles=10000000000):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
