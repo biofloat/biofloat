@@ -149,6 +149,8 @@ class OxyFloat(object):
                 df[v] = s
             except KeyError:
                 self.logger.warn('%s not in %s', v, url)
+            except pydap.exceptions.ServerError as e:
+                self.logger.error(e)
 
         return df
 
