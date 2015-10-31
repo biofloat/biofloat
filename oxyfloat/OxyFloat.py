@@ -223,8 +223,11 @@ class OxyFloat(object):
         base_url = '/'.join(catalog_url.split('/')[:4]) + '/dodsC/'
 
         # Pull out <dataset ... urlPath='...nc'> attributes from the XML
+        urls = []
         for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
-            yield base_url + e['urlpath']
+            urls.append(base_url + e['urlpath'])
+
+        return urls
 
     def get_float_dataframe(self, wmo_list, max_profiles=1e10):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
@@ -233,16 +236,19 @@ class OxyFloat(object):
         will be returned, this is useful for testing.
         '''
         float_df = pd.DataFrame()
-        for wmo, dac_url in self.get_dac_urls(wmo_list).iteritems():
-            for i, url in enumerate(self.get_profile_opendap_urls(dac_url)):
+        for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
+            self.logger.info('Float %s of %s', f, len(wmo_list))
+            opendap_urls = self.get_profile_opendap_urls(dac_url)
+            for i, url in enumerate(opendap_urls):
                 if i > max_profiles:
-                    self.logger.info('Stopping after %s profiles', i)
+                    self.logger.info('Stopping at max_profiles = %s', max_profiles)
                     break
                 key = self._url_to_naturalname(url)
                 try:
                     df = self._get_df(key)
                 except KeyError:
                     try:
+                        self.logger.info('Profile %s of %s', i, len(opendap_urls))
                         df = self._profile_to_dataframe(wmo, url)
                         self._put_df(df, key)
                         self.logger.debug(df.head())
@@ -250,6 +256,7 @@ class OxyFloat(object):
                         self.logger.warn('RequiredVariableNotPresent in %s', url)
                         # Insert an empy DataFrame to mark this key as taken
                         self._put_df(pd.DataFrame(), key)
+                        continue
 
                 float_df = float_df.append(df)
 
