@@ -42,8 +42,8 @@ class OxyFloatLoader(object):
         parser.add_argument('--max_profiles', action='store', type=int, default=1000000,
                             help='Maximum number of profiles')
         parser.add_argument('--cache_file', action='store', help='Override default file')
-        parser.add_argument('-v', '--verbose', nargs='?', choices=[0,1,2,3], type=int, 
-                            help='0: ERROR, 1: WARN, 2: INFO, 3:DEBUG', const=2)
+        parser.add_argument('-v', '--verbose', nargs='?', choices=[0,1,2,3], type=int,
+                            help='0: ERROR, 1: WARN, 2: INFO, 3:DEBUG', default=0, const=2)
 
         self.args = parser.parse_args()
 
