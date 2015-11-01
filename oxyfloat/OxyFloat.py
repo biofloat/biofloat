@@ -144,7 +144,7 @@ class OxyFloat(object):
                         round(pres, 1))
                                 for pres in ds['PRES_ADJUSTED'].values[0]]
         indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 
-                                                    'lon', 'lat', 'depth'])
+                                                    'lon', 'lat', 'pressure'])
         df = pd.DataFrame()
         # Add only non-coordinate variables to the DataFrame
         for v in self.variables ^ self._coordinates:
