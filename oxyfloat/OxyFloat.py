@@ -146,6 +146,7 @@ class OxyFloat(object):
         indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 
                                                     'lon', 'lat', 'depth'])
         df = pd.DataFrame()
+        # Add only non-coordinate variables to the DataFrame
         for v in self.variables ^ self._coordinates:
             try:
                 s = pd.Series(ds[v].values[0], index=indices)
@@ -264,7 +265,17 @@ class OxyFloat(object):
 
         return adjusted_max_profiles
 
-    def get_float_dataframe(self, wmo_list, max_profiles=None):
+    def _validate_oxygen(self, df, url):
+        '''Return empty DataFrame if no valid oxygen otherwise return df.
+        '''
+        if df['DOXY_ADJUSTED'].dropna().empty:
+            self.logger.warn('Oxygen is all NaNs in %s', url)
+            df = pd.DataFrame()
+
+        return df
+
+    def get_float_dataframe(self, wmo_list, max_profiles=None, 
+                            oxygen_required=True):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
@@ -291,11 +302,13 @@ class OxyFloat(object):
                         self.logger.info('Profile %s of %s from %s', 
                                                   i, len(opendap_urls), url)
                         df = self._profile_to_dataframe(wmo, url)
+                        if oxygen_required:
+                            df = self._validate_oxygen(df, url)
                         self._put_df(df, key)
                         self.logger.debug(df.head())
                     except RequiredVariableNotPresent:
                         self.logger.warn('RequiredVariableNotPresent in %s', url)
-                        # Insert an empy DataFrame to mark this key as taken
+                        # Insert empty DataFrame to mark this key as taken
                         self._put_df(pd.DataFrame(), key)
                         continue
 
