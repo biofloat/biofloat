@@ -45,7 +45,7 @@ class OxyFloat(object):
     _MAX_PROFILES = 10000000000
     cache_file_fmt = 'oxyfloat_age_{}_max_profiles_{:d}.hdf'
 
-    def __init__(self, verbosity=0, cache_file=None,
+    def __init__(self, verbosity=0, cache_file=None, oxygen_required=True,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS',
@@ -57,6 +57,7 @@ class OxyFloat(object):
         Args:
             verbosity (int): range(4), default=0
             cache_file (str): Defaults to oxyfloat_cache.hdf next to module
+            oxygen_required (boolean): Save profile only if oxygen data exist
             status_url (str): Source URL for Argo status data, defaults to
                 http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt
             global_url (str): Source URL for DAC locations, defaults to
@@ -71,6 +72,7 @@ class OxyFloat(object):
         self.variables = set(variables)
 
         self.logger.setLevel(self._log_levels[verbosity])
+        self._oxygen_required = oxygen_required
 
         if cache_file:
             self.cache_file_requested = cache_file
@@ -135,14 +137,13 @@ class OxyFloat(object):
         self.logger.debug('Checking %s for our desired variables', url)
         for v in self.variables:
             if v not in ds.keys():
-                raise RequiredVariableNotPresent(url + ' missing ' + v)
+                raise RequiredVariableNotPresent('%s not in %s', v, url)
 
         # Make a DataFrame with a hierarchical index for better efficiency
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
-        tuples = [(wmo, str(ds['JULD'].values[0]).split('.')[0], 
-                        ds['LONGITUDE'].values[0], ds['LATITUDE'].values[0], 
-                        round(pres, 1))
-                                for pres in ds['PRES_ADJUSTED'].values[0]]
+        tuples = [(wmo, ds['JULD'].values[0], ds['LONGITUDE'].values[0], 
+                   ds['LATITUDE'].values[0], round(pres, 1))
+                            for pres in ds['PRES_ADJUSTED'].values[0]]
         indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 
                                                     'lon', 'lat', 'pressure'])
         df = pd.DataFrame()
@@ -246,16 +247,17 @@ class OxyFloat(object):
 
         return urls
 
-    def _adjust_max_profiles(self, max_profiles):
+    def _get_cache_file_parms(self, max_profiles):
         '''Adjust max_profiles setting based on cache_file being used
         so as not to cause downloading of additional unwanted data.
-        Returns potentially adjusted max_profiles
+        Returns potentially adjusted max_profiles.
         '''
         adjusted_max_profiles = max_profiles
         try:
-            cache_file_max = int(
-                    self.cache_file_requested.split('_')[-1].split('.')[0])
-            if max_profiles > cache_file_max:
+            p = re.compile('max_profiles_([0-9]+)')
+            m = p.search(self.cache_file_requested)
+            cache_file_max = int(m.group(1))
+            if not max_profiles or max_profiles > cache_file_max:
                 self.logger.warn("Requested max_profiles %s exceeds requested "
                         "cache file's: %s", max_profiles, cache_file_max)
                 self.logger.info("Setting max_profiles to %s", cache_file_max)
@@ -274,16 +276,33 @@ class OxyFloat(object):
 
         return df
 
-    def get_float_dataframe(self, wmo_list, max_profiles=None, 
-                            oxygen_required=True):
+    def _save_profile(self, url, count, opendap_urls, wmo, key):
+        '''Put profile data into the local HDF cache.
+        '''
+        try:
+            self.logger.info('Profile %s of %s from %s', count, 
+                              len(opendap_urls), url)
+            df = self._profile_to_dataframe(wmo, url)
+            if self._oxygen_required:
+                df = self._validate_oxygen(df, url)
+            self.logger.debug(df.head())
+        except RequiredVariableNotPresent as e:
+            self.logger.warn(str(e))
+            df = pd.DataFrame()
+
+        self._put_df(df, key)
+
+        return df
+
+    def get_float_dataframe(self, wmo_list, max_profiles=None):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
-        will be returned, this is useful for testing.
+        will be returned, this is useful for testing or for getting just 
+        the most recent data from the float.
         '''
-        if max_profiles:
-            max_profiles = self._adjust_max_profiles(max_profiles)
-        else:
+        max_profiles = self._get_cache_file_parms(max_profiles)
+        if not max_profiles:
             max_profiles = self._MAX_PROFILES
 
         float_df = pd.DataFrame()
@@ -298,19 +317,7 @@ class OxyFloat(object):
                 try:
                     df = self._get_df(key)
                 except KeyError:
-                    try:
-                        self.logger.info('Profile %s of %s from %s', 
-                                                  i, len(opendap_urls), url)
-                        df = self._profile_to_dataframe(wmo, url)
-                        if oxygen_required:
-                            df = self._validate_oxygen(df, url)
-                        self._put_df(df, key)
-                        self.logger.debug(df.head())
-                    except RequiredVariableNotPresent:
-                        self.logger.warn('RequiredVariableNotPresent in %s', url)
-                        # Insert empty DataFrame to mark this key as taken
-                        self._put_df(pd.DataFrame(), key)
-                        continue
+                    df = self._save_profile(url, i, opendap_urls, wmo, key)
 
                 float_df = float_df.append(df)
 
