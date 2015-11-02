@@ -1,10 +1,20 @@
 [report]
 exclude_lines =
     pragma: no cover
+
+    # Can't test for running in Jupyter Notebook
+    _notebook_handler
+    logger = logging.getLogger()
+
+    # Ignore defensive code
     except ImportError
     raise RequiredVariableNotPresent
     self.logger.setLevel
     except pydap.exceptions.ServerError
     raise OpenDAPServerError
     except (RequiredVariableNotPresent, OpenDAPServerError) as e
-    self.logger.warn(e)
+    self.logger.warn
+    except KeyError
+    except ConnectionError
+    self.logger.error
+    self.logger.exception
