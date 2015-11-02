@@ -47,5 +47,21 @@ class DataTest(unittest.TestCase):
         df = self.of.get_float_dataframe(self.bad_oga_floats, 2)
         self.assertEqual(len(df), 0)
 
+    def test_cache_file(self):
+        of = OxyFloat(cache_file='/tmp/oxyfloat_cache_file.hdf')
+        of.set_verbosity(1)
+
+    def test_cache_file_fmt(self):
+        age = 3000      # Returns 1 float on 2 November 2015
+        parent_dir = os.path.join(os.path.dirname(__file__), "../")
+        cache_file = os.path.abspath(os.path.join(parent_dir, 'oxyfloat',
+                        OxyFloat.cache_file_fmt.format(age, 1)))
+        of = OxyFloat(verbosity=2, cache_file=cache_file)
+        wmo_list = of.get_oxy_floats_from_status(age_gte=age)
+        # Force limiting to what's in cache_file name: 1
+        of.get_float_dataframe(wmo_list, max_profiles=2)
+        # Force using of._MAX_PROFILES
+        of.get_float_dataframe(wmo_list)
+        
 if __name__ == '__main__':
     unittest.main()
