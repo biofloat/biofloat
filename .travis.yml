@@ -5,15 +5,26 @@ python:
   - "3.4"
   - "3.5"
 
-before_install: 
-  - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
-  - chmod +x miniconda.sh
-  - ./miniconda.sh -b
-  - export PATH=/home/travis/miniconda/bin:$PATH
+install: 
+  - sudo apt-get update
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+      wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
+    else
+      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    fi
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
-  - export HDF5_DIR=/home/travis/miniconda/
-  - conda install --yes hdf5
+  # Useful for debugging any issues with conda
+  - conda info -a
+
+  ##- export HDF5_DIR=/home/travis/miniconda/
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION hdf5
+  - source activate test-environment
+  - python setup.py install
+
 script:  
   - ./test.sh 
 after_script:
