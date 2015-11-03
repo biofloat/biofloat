@@ -43,7 +43,14 @@ class OxyFloat(object):
     _GLOBAL_META = 'global_meta'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
     _MAX_PROFILES = 10000000000
-    cache_file_fmt = 'oxyfloat_age_{}_max_profiles_{:d}.hdf'
+
+    # Names and search patterns for cache file naming/parsing
+    # Make private and ignore pylint's complaints
+    # No other names in this class can end in 'RE'
+    _fixed_cache_base = 'oxyfloat_fixed_cache'
+    _ageRE = 'age([0-9]+)'
+    _profilesRE = 'profiles([0-9]+)'
+    _pressureRE = 'pressure([0-9]+)'
 
     def __init__(self, verbosity=0, cache_file=None, oxygen_required=True,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
@@ -65,6 +72,22 @@ class OxyFloat(object):
             thredds_url (str): Base URL for THREDDS Data Server, defaults to
                 http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS
             variables (list): Variables to extract from NetCDF files
+
+        cache_file:
+
+            There are 3 kinds of cache files:
+
+            1. The default file named oxyfloat_cache.hdf that is automatically
+               placed in the oxyfloat module directory. It will cache whatever
+               data is requested via call to get_float_dataframe().
+            2. Specially named cache_files produced by the load_cache.py program
+               in the scripts directory. These files are built with constraints
+               and are fixed. Once built they can be used in a read-only fashion
+               to work on only the data they contain. Calls to get_float_dataframe()
+               will not add more data to these "fixed" cache files.
+            3. Custom cache file names. These operate just like the default cache
+               file, but can be named whatever the user wants. 
+
         '''
         self.status_url = status_url
         self.global_url = global_url
@@ -248,24 +271,24 @@ class OxyFloat(object):
         return urls
 
     def _get_cache_file_parms(self, max_profiles):
-        '''Adjust max_profiles setting based on cache_file being used
-        so as not to cause downloading of additional unwanted data.
-        Returns potentially adjusted max_profiles.
+        '''Return dictionary of constraint parameters from cache_file name.
         '''
-        adjusted_max_profiles = max_profiles
-        try:
-            p = re.compile('max_profiles_([0-9]+)')
-            m = p.search(self.cache_file_requested)
-            cache_file_max = int(m.group(1))
-            if not max_profiles or max_profiles > cache_file_max:
-                self.logger.warn("Requested max_profiles %s exceeds requested "
-                        "cache file's: %s", max_profiles, cache_file_max)
-                self.logger.info("Setting max_profiles to %s", cache_file_max)
-                adjusted_max_profiles = cache_file_max
-        except AttributeError:
-            pass
+        parm_dict = {}
+        for regex in [a for a in dir(self) if not callable(a) and a.endswith("RE")]:
+            try:
+                p = re.compile(self.__getattribute__(regex))
+                m = p.search(self.cache_file_requested)
+                if 'profiles' in regex:
+                    cache_file_max = int(m.group(1))
+                    if (not max_profiles) or (max_profiles > cache_file_max):
+                        self.logger.warn("Requested max_profiles %s exceeds requested "
+                                "cache file's: %s", max_profiles, cache_file_max)
+                        self.logger.info("Setting max_profiles to %s", cache_file_max)
+                        parm_dict['profiles'] = cache_file_max
+            except AttributeError:
+                pass
 
-        return adjusted_max_profiles
+        return parm_dict
 
     def _validate_oxygen(self, df, url):
         '''Return empty DataFrame if no valid oxygen otherwise return df.
@@ -294,14 +317,19 @@ class OxyFloat(object):
 
         return df
 
-    def get_float_dataframe(self, wmo_list, max_profiles=None):
+    def get_float_dataframe(self, wmo_list, max_profiles=None, append_df=True):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
         will be returned, this is useful for testing or for getting just 
-        the most recent data from the float.
+        the most recent data from the float. Set append_df to False if
+        calling simply to load cache_file (reduces memory requirements).
         '''
-        max_profiles = self._get_cache_file_parms(max_profiles)
+        try:
+            max_profiles = self._get_cache_file_parms(max_profiles)['profiles']
+        except KeyError:
+            pass
+
         if not max_profiles:
             max_profiles = self._MAX_PROFILES
 
@@ -319,7 +347,8 @@ class OxyFloat(object):
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key)
 
-                float_df = float_df.append(df)
+                if append_df:
+                    float_df = float_df.append(df)
 
         return float_df
 
