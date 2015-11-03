@@ -1,47 +1,83 @@
 #!/usr/bin/env python
 
-import os
 import sys
-parent_dir = os.path.join(os.path.dirname(__file__), "../")
+from os.path import join, dirname, abspath
+parent_dir = join(dirname(__file__), "../")
 sys.path.insert(0, parent_dir)
+
 
 from oxyfloat import OxyFloat
 
 class OxyFloatLoader(object):
 
+    def short_cache_file(self):
+        '''Build cache_file short name from command line arguemnts and
+        from format descriptors from OxyFloat.
+        '''
+        # This unfortunately tricky loop finds all class variables in
+        # OxyFloat ending with 'RE' (e.g. 'ageRE', 'profilesRE') and
+        # gets the corresponding argument value for building the 
+        # cache file name. It allows control of items from OxyFloat
+        # but suffers from having to keep this script's calling
+        # arguments in sync with the *RE variables in OxyFloat.
+
+        cache_file = OxyFloat._fixed_cache_base
+        # Lop off leading '_' and trailing 'RE' from regex value
+        for item in [a.split('(')[0][1:-2] for a in dir(OxyFloat()) 
+                            if not callable(a) and a.endswith("RE")]:
+            try:
+                cache_file += '_{}{:d}'.format(item, vars(self.args)[item])
+            except KeyError:
+                pass
+
+        cache_file += '.hdf'
+
+        return cache_file
+
     def process(self):
         if self.args.cache_file:
             cache_file = self.args.cache_file
         else:
-            cache_file = os.path.abspath(os.path.join(parent_dir, 'oxyfloat',
-                OxyFloat.cache_file_fmt.format(
-                        self.args.age, self.args.max_profiles)))
+            if self.args.cache_dir:
+                cache_dir = self.args.cache_dir
+            else:
+                cache_dir = abspath(join(dirname(__file__), "../oxyfloat"))
 
+            cache_file = join(cache_dir, self.short_cache_file())
+
+        print(('Loading cache file {}...').format(cache_file))
         of = OxyFloat(verbosity=self.args.verbose, cache_file=cache_file)
 
         wmo_list = of.get_oxy_floats_from_status(age_gte=self.args.age)
-        of.get_float_dataframe(wmo_list, max_profiles=self.args.max_profiles)
+        of.get_float_dataframe(wmo_list, max_profiles=self.args.profiles, 
+                               append_df=False)
 
     def process_command_line(self):
         import argparse
         from argparse import RawTextHelpFormatter
 
-        examples = 'Example:' + '\n' 
-        examples += sys.argv[0] + " --age 340 --max_profiles 20"
+        examples = 'Examples:' + '\n' 
+        examples = '---------' + '\n' 
+        examples += sys.argv[0] + " --age 340 --profiles 20"
+        examples += sys.argv[0] + " --age 340 --pressure 10"
         examples += "\n\n"
     
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
                     description='Script to load local HDF cache with Argo float data.\n'
                                 'Default cache file is located in oxyfloat module\n'
-                                'directory named with age and max_profiles numbers\n'
-                                'with format {}.'.format(OxyFloat.cache_file_fmt),
+                                'directory named with constraints used to build the\n'
+                                'cache',
                     epilog=examples)
                                              
         parser.add_argument('--age', action='store', type=int, default=340,
-                            help='Select age >=') 
-        parser.add_argument('--max_profiles', action='store', type=int, default=1000000,
+                            help='Select age greater than or equal') 
+        parser.add_argument('--profiles', action='store', type=int, default=1000000,
                             help='Maximum number of profiles')
+        parser.add_argument('--pressure', action='store', type=int, default=11000,
+                            help='Select pressures less than this value')
         parser.add_argument('--cache_file', action='store', help='Override default file')
+        parser.add_argument('--cache_dir', action='store', help='Directory for cache file'
+                            ' otherwise it is put in the oxyfloat module directory')
         parser.add_argument('-v', '--verbose', nargs='?', choices=[0,1,2,3], type=int,
                             help='0: ERROR, 1: WARN, 2: INFO, 3:DEBUG', default=0, const=2)
 
