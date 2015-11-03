@@ -51,11 +51,18 @@ class DataTest(unittest.TestCase):
         of = OxyFloat(cache_file='/tmp/oxyfloat_cache_file.hdf')
         of.set_verbosity(1)
 
-    def test_cache_file_fmt(self):
+    def test_fixed_cache_file(self):
         age = 3000      # Returns 1 float on 2 November 2015
         parent_dir = os.path.join(os.path.dirname(__file__), "../")
-        cache_file = os.path.abspath(os.path.join(parent_dir, 'oxyfloat',
-                        OxyFloat.cache_file_fmt.format(age, 1)))
+
+        # Simulated what's done by load_cache.py
+        from scripts.load_cache import OxyFloatLoader
+        from argparse import Namespace
+        ofl = OxyFloatLoader()
+        ofl.args = Namespace(age=3000, profiles=1)
+        cache_file = os.path.abspath(
+                     os.path.join(parent_dir, 'oxyfloat', ofl.short_cache_file()))
+
         of = OxyFloat(verbosity=2, cache_file=cache_file)
         wmo_list = of.get_oxy_floats_from_status(age_gte=age)
         # Force limiting to what's in cache_file name: 1
