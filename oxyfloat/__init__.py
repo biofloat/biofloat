@@ -1,4 +1,4 @@
-__all__ = ['exceptions', 'OxyFloat']
+__all__ = ['exceptions', 'ArgoData']
 
-from .OxyFloat import OxyFloat
+from .ArgoData import ArgoData
 

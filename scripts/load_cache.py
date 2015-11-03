@@ -6,24 +6,24 @@ parent_dir = join(dirname(__file__), "../")
 sys.path.insert(0, parent_dir)
 
 
-from oxyfloat import OxyFloat
+from oxyfloat import ArgoData
 
-class OxyFloatLoader(object):
+class ArgoDataLoader(object):
 
     def short_cache_file(self):
         '''Build cache_file short name from command line arguemnts and
-        from format descriptors from OxyFloat.
+        from format descriptors from ArgoData.
         '''
         # This unfortunately tricky loop finds all class variables in
-        # OxyFloat ending with 'RE' (e.g. 'ageRE', 'profilesRE') and
+        # ArgoData ending with 'RE' (e.g. 'ageRE', 'profilesRE') and
         # gets the corresponding argument value for building the 
-        # cache file name. It allows control of items from OxyFloat
+        # cache file name. It allows control of items from ArgoData
         # but suffers from having to keep this script's calling
-        # arguments in sync with the *RE variables in OxyFloat.
+        # arguments in sync with the *RE variables in ArgoData.
 
-        cache_file = OxyFloat._fixed_cache_base
-        # Lop off leading '_' and trailing 'RE' from regex values in OxyFloat
-        for item in [a[1:-2] for a in dir(OxyFloat()) 
+        cache_file = ArgoData._fixed_cache_base
+        # Lop off leading '_' and trailing 'RE' from regex values in ArgoData
+        for item in [a[1:-2] for a in dir(ArgoData()) 
                                  if not callable(a) and a.endswith("RE")]:
             try:
                 cache_file += '_{}{:d}'.format(item, vars(self.args)[item])
@@ -46,7 +46,7 @@ class OxyFloatLoader(object):
             cache_file = join(cache_dir, self.short_cache_file())
 
         print(('Loading cache file {}...').format(cache_file))
-        of = OxyFloat(verbosity=self.args.verbose, cache_file=cache_file)
+        ad = ArgoData(verbosity=self.args.verbose, cache_file=cache_file)
 
         wmo_list = of.get_oxy_floats_from_status(age_gte=self.args.age)
         of.get_float_dataframe(wmo_list, max_profiles=self.args.profiles, 
@@ -87,7 +87,7 @@ class OxyFloatLoader(object):
 
 if __name__ == '__main__':
 
-    ofl = OxyFloatLoader()
-    ofl.process_command_line()
-    ofl.process()
+    adl = ArgoDataLoader()
+    adl.process_command_line()
+    adl.process()
 
