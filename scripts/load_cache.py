@@ -48,8 +48,8 @@ class ArgoDataLoader(object):
         print(('Loading cache file {}...').format(cache_file))
         ad = ArgoData(verbosity=self.args.verbose, cache_file=cache_file)
 
-        wmo_list = of.get_oxy_floats_from_status(age_gte=self.args.age)
-        of.get_float_dataframe(wmo_list, max_profiles=self.args.profiles, 
+        wmo_list = ad.get_oxy_floats_from_status(age_gte=self.args.age)
+        ad.get_float_dataframe(wmo_list, max_profiles=self.args.profiles, 
                                          max_pressure=self.args.pressure,
                                          append_df=False)
 
