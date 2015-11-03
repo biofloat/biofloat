@@ -22,12 +22,12 @@ class OxyFloatLoader(object):
         # arguments in sync with the *RE variables in OxyFloat.
 
         cache_file = OxyFloat._fixed_cache_base
-        # Lop off leading '_' and trailing 'RE' from regex value
-        for item in [a.split('(')[0][1:-2] for a in dir(OxyFloat()) 
-                            if not callable(a) and a.endswith("RE")]:
+        # Lop off leading '_' and trailing 'RE' from regex values in OxyFloat
+        for item in [a[1:-2] for a in dir(OxyFloat()) 
+                                 if not callable(a) and a.endswith("RE")]:
             try:
                 cache_file += '_{}{:d}'.format(item, vars(self.args)[item])
-            except KeyError:
+            except (KeyError, ValueError):
                 pass
 
         cache_file += '.hdf'
@@ -50,7 +50,8 @@ class OxyFloatLoader(object):
 
         wmo_list = of.get_oxy_floats_from_status(age_gte=self.args.age)
         of.get_float_dataframe(wmo_list, max_profiles=self.args.profiles, 
-                               append_df=False)
+                                         max_pressure=self.args.pressure,
+                                         append_df=False)
 
     def process_command_line(self):
         import argparse
@@ -71,9 +72,9 @@ class OxyFloatLoader(object):
                                              
         parser.add_argument('--age', action='store', type=int, default=340,
                             help='Select age greater than or equal') 
-        parser.add_argument('--profiles', action='store', type=int, default=1000000,
+        parser.add_argument('--profiles', action='store', type=int,
                             help='Maximum number of profiles')
-        parser.add_argument('--pressure', action='store', type=int, default=11000,
+        parser.add_argument('--pressure', action='store', type=int,
                             help='Select pressures less than this value')
         parser.add_argument('--cache_file', action='store', help='Override default file')
         parser.add_argument('--cache_dir', action='store', help='Directory for cache file'

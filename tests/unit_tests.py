@@ -32,7 +32,7 @@ class DataTest(unittest.TestCase):
 
     def _profile_to_dataframe(self):
         d = self.of._profile_to_dataframe(self.good_oga_floats[0], 
-                self.profile_url)
+                self.profile_url, 11000)
         self.assertNotEqual(len(d), 0)
 
     def test_read_profile_data(self):

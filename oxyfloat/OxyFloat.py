@@ -42,7 +42,6 @@ class OxyFloat(object):
     _STATUS = 'status'
     _GLOBAL_META = 'global_meta'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
-    _MAX_PROFILES = 10000000000
 
     # Names and search patterns for cache file naming/parsing
     # Make private and ignore pylint's complaints
@@ -98,7 +97,7 @@ class OxyFloat(object):
         self._oxygen_required = oxygen_required
 
         if cache_file:
-            self.cache_file_requested = cache_file
+            self.cache_file_parms = self._get_cache_file_parms(cache_file)
             self.cache_file = cache_file
         else:
             # Write to same directory where this module is installed
@@ -151,7 +150,20 @@ class OxyFloat(object):
 
         return df
 
-    def _profile_to_dataframe(self, wmo, url):
+    def _get_pressures(self, ds, max_pressure):
+        '''From xray ds return tuple of pressures list and pres_indices list.
+        '''
+        pressures = []
+        pres_indices = []
+        for i, p in enumerate(ds['PRES_ADJUSTED'].values[0]):
+            if p >= max_pressure:
+                break
+            pressures.append(p)
+            pres_indices.append(i)
+
+        return pressures, pres_indices
+
+    def _profile_to_dataframe(self, wmo, url, max_pressure):
         '''Return a Pandas DataFrame of profiling float data from data at url.
         '''
         self.logger.debug('Opening %s', url)
@@ -162,18 +174,20 @@ class OxyFloat(object):
             if v not in ds.keys():
                 raise RequiredVariableNotPresent('%s not in %s', v, url)
 
+        pressures, pres_indices = self._get_pressures(ds, max_pressure)
+
         # Make a DataFrame with a hierarchical index for better efficiency
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
         tuples = [(wmo, ds['JULD'].values[0], ds['LONGITUDE'].values[0], 
-                   ds['LATITUDE'].values[0], round(pres, 1))
-                            for pres in ds['PRES_ADJUSTED'].values[0]]
+                        ds['LATITUDE'].values[0], round(pres, 1))
+                                        for pres in pressures]
         indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 
                                                     'lon', 'lat', 'pressure'])
         df = pd.DataFrame()
         # Add only non-coordinate variables to the DataFrame
         for v in self.variables ^ self._coordinates:
             try:
-                s = pd.Series(ds[v].values[0], index=indices)
+                s = pd.Series(ds[v].values[0][pres_indices], index=indices)
                 self.logger.debug('Added %s to DataFrame', v)
                 df[v] = s
             except KeyError:
@@ -270,25 +284,38 @@ class OxyFloat(object):
 
         return urls
 
-    def _get_cache_file_parms(self, max_profiles):
-        '''Return dictionary of constraint parameters from cache_file name.
+    def _get_cache_file_parms(self, cache_file):
+        '''Return dictionary of constraint parameters from name of fixed cache file.
         '''
         parm_dict = {}
-        for regex in [a for a in dir(self) if not callable(a) and a.endswith("RE")]:
-            try:
-                p = re.compile(self.__getattribute__(regex))
-                m = p.search(self.cache_file_requested)
-                if 'profiles' in regex:
-                    cache_file_max = int(m.group(1))
-                    if (not max_profiles) or (max_profiles > cache_file_max):
-                        self.logger.warn("Requested max_profiles %s exceeds requested "
-                                "cache file's: %s", max_profiles, cache_file_max)
-                        self.logger.info("Setting max_profiles to %s", cache_file_max)
-                        parm_dict['profiles'] = cache_file_max
-            except AttributeError:
-                pass
+        if cache_file.startswith(self._fixed_cache_base):
+            for regex in [a for a in dir(self) if not callable(a) and 
+                                                  a.endswith("RE")]:
+                try:
+                    p = re.compile(self.__getattribute__(regex))
+                    m = p.search(cache_file)
+                    parm_dict[regex[1:-2]] = int(m.group(1))
+                except AttributeError:
+                    pass
 
         return parm_dict
+
+    def _validate_cache_file_parm(self, parm, value):
+        '''Return adjusted parm value if it exceeds fixed cache file value.
+        '''
+        try:
+            cache_file_value = self.cache_file_parms[parm]
+        except KeyError:
+            # Return a ridiculously large integer to force reading all data
+            return 10000000000
+
+        if (not value) or (value > cache_file_value):
+            self.logger.warn("Requested %s %s exceeds cache file's parameter: %s",
+                              parm, value, cache_file_value)
+            self.logger.info("Setting %s to %s", name, cache_file_value)
+            return cache_file_value
+        else:
+            return value
 
     def _validate_oxygen(self, df, url):
         '''Return empty DataFrame if no valid oxygen otherwise return df.
@@ -299,13 +326,13 @@ class OxyFloat(object):
 
         return df
 
-    def _save_profile(self, url, count, opendap_urls, wmo, key):
+    def _save_profile(self, url, count, opendap_urls, wmo, key, max_pressure):
         '''Put profile data into the local HDF cache.
         '''
         try:
             self.logger.info('Profile %s of %s from %s', count, 
                               len(opendap_urls), url)
-            df = self._profile_to_dataframe(wmo, url)
+            df = self._profile_to_dataframe(wmo, url, max_pressure)
             if self._oxygen_required:
                 df = self._validate_oxygen(df, url)
             self.logger.debug(df.head())
@@ -317,7 +344,8 @@ class OxyFloat(object):
 
         return df
 
-    def get_float_dataframe(self, wmo_list, max_profiles=None, append_df=True):
+    def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
+                                  append_df=True):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
@@ -325,13 +353,8 @@ class OxyFloat(object):
         the most recent data from the float. Set append_df to False if
         calling simply to load cache_file (reduces memory requirements).
         '''
-        try:
-            max_profiles = self._get_cache_file_parms(max_profiles)['profiles']
-        except KeyError:
-            pass
-
-        if not max_profiles:
-            max_profiles = self._MAX_PROFILES
+        max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
+        max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
 
         float_df = pd.DataFrame()
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
@@ -345,7 +368,7 @@ class OxyFloat(object):
                 try:
                     df = self._get_df(key)
                 except KeyError:
-                    df = self._save_profile(url, i, opendap_urls, wmo, key)
+                    df = self._save_profile(url, i, opendap_urls, wmo, key, max_pressure)
 
                 if append_df:
                     float_df = float_df.append(df)
