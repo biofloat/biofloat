@@ -22,7 +22,7 @@ install:
 
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION
   - source activate test-environment
-  - export HDF5_DIR=/home/travis/miniconda/test-environment
+  - export HDF5_DIR=/home/travis/envs/test-environment
   - conda install hdf5
   - pip install -r requirements.txt
 
