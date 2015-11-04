@@ -104,13 +104,15 @@ class ArgoData(object):
             self.cache_file = os.path.abspath(os.path.join(
                               os.path.dirname(__file__), 'oxyfloat_cache.hdf'))
 
-    def _put_df(self, df, name):
-        '''Save Pandas DataFrame to local HDF file.
+    def _put_df(self, df, name, metadata=None):
+        '''Save Pandas DataFrame to local HDF file with optional metadata dict.
         '''
         store = pd.HDFStore(self.cache_file)
         self.logger.info('Saving DataFrame to name "%s" in file %s',
                                             name, self.cache_file)
         store[name] = df
+        if metadata:
+            store.get_storer(name).attrs.metadata = metadata
         self.logger.debug('store.close()')
         store.close()
 
@@ -161,6 +163,9 @@ class ArgoData(object):
             pressures.append(p)
             pres_indices.append(i)
 
+        if not pressures:
+            self.logger.warn('No PRES_ADJUSTED values in netCDF file')
+
         return pressures, pres_indices
 
     def _profile_to_dataframe(self, wmo, url, max_pressure):
@@ -181,19 +186,20 @@ class ArgoData(object):
         tuples = [(wmo, ds['JULD'].values[0], ds['LONGITUDE'].values[0], 
                         ds['LATITUDE'].values[0], round(pres, 1))
                                         for pres in pressures]
-        indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 
-                                                    'lon', 'lat', 'pressure'])
         df = pd.DataFrame()
-        # Add only non-coordinate variables to the DataFrame
-        for v in self.variables ^ self._coordinates:
-            try:
-                s = pd.Series(ds[v].values[0][pres_indices], index=indices)
-                self.logger.debug('Added %s to DataFrame', v)
-                df[v] = s
-            except KeyError:
-                self.logger.warn('%s not in %s', v, url)
-            except pydap.exceptions.ServerError as e:
-                self.logger.error(e)
+        if tuples:
+            indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 
+                                                        'lon', 'lat', 'pressure'])
+            # Add only non-coordinate variables to the DataFrame
+            for v in self.variables ^ self._coordinates:
+                try:
+                    s = pd.Series(ds[v].values[0][pres_indices], index=indices)
+                    self.logger.debug('Added %s to DataFrame', v)
+                    df[v] = s
+                except KeyError:
+                    self.logger.warn('%s not in %s', v, url)
+                except pydap.exceptions.ServerError as e:
+                    self.logger.error(e)
 
         return df
 
@@ -347,14 +353,14 @@ class ArgoData(object):
             self.logger.info('Profile %s of %s from %s', count, 
                               len(opendap_urls), url)
             df = self._profile_to_dataframe(wmo, url, max_pressure)
-            if self._oxygen_required:
+            if not df.empty and self._oxygen_required:
                 df = self._validate_oxygen(df, url)
             self.logger.debug(df.head())
         except RequiredVariableNotPresent as e:
             self.logger.warn(str(e))
             df = pd.DataFrame()
 
-        self._put_df(df, key)
+        self._put_df(df, key, {'url', url})
 
         return df
 
