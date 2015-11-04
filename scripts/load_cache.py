@@ -52,6 +52,7 @@ class ArgoDataLoader(object):
         ad.get_float_dataframe(wmo_list, max_profiles=self.args.profiles, 
                                          max_pressure=self.args.pressure,
                                          append_df=False)
+        print(('Finished loading cache file {}...').format(cache_file))
 
     def process_command_line(self):
         import argparse
