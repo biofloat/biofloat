@@ -20,7 +20,7 @@ install:
   # Useful for debugging any issues with conda
   - conda info -a
 
-  ##- export HDF5_DIR=/home/travis/miniconda/
+  - export HDF5_DIR=/home/travis/miniconda/
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION hdf5
   - source activate test-environment
   - pip install -r requirements.txt
