@@ -23,7 +23,7 @@ install:
   ##- export HDF5_DIR=/home/travis/miniconda/
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION hdf5
   - source activate test-environment
-  - python setup.py install
+  ##- python setup.py install
 
 script:  
   - ./test.sh 
