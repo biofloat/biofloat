@@ -108,8 +108,8 @@ class ArgoData(object):
         '''Save Pandas DataFrame to local HDF file with optional metadata dict.
         '''
         store = pd.HDFStore(self.cache_file)
-        self.logger.info('Saving DataFrame to name "%s" in file %s',
-                                            name, self.cache_file)
+        self.logger.info('Saving DataFrame to name "...%s" in file %s',
+                                            name[-20:], self.cache_file)
         store[name] = df
         if metadata:
             store.get_storer(name).attrs.metadata = metadata
