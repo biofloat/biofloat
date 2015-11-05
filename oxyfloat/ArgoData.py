@@ -177,7 +177,7 @@ class ArgoData(object):
         self.logger.debug('Checking %s for our desired variables', url)
         for v in self.variables:
             if v not in ds.keys():
-                raise RequiredVariableNotPresent('%s not in %s', v, url)
+                raise RequiredVariableNotPresent('{} not in {}'.format(v, url))
 
         pressures, pres_indices = self._get_pressures(ds, max_pressure)
 
@@ -355,7 +355,6 @@ class ArgoData(object):
             df = self._profile_to_dataframe(wmo, url, max_pressure)
             if not df.empty and self._oxygen_required:
                 df = self._validate_oxygen(df, url)
-            self.logger.debug(df.head())
         except RequiredVariableNotPresent as e:
             self.logger.warn(str(e))
             df = pd.DataFrame()
@@ -390,6 +389,7 @@ class ArgoData(object):
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, max_pressure)
 
+                self.logger.debug(df.head())
                 if append_df:
                     float_df = float_df.append(df)
 
