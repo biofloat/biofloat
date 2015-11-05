@@ -12,12 +12,12 @@ before_install:
     else
       wget https://repo.continuum.io/miniconda/Miniconda3-3.9.1-Linux-x86_64.sh -O miniconda.sh;
     fi
-   - chmod +x miniconda.sh
-   - ./miniconda.sh -b
-   - export PATH=/home/travis/miniconda/bin:$PATH
-   - conda update --yes conda
-   - export HDF5_DIR=/home/travis/miniconda/
-   - conda install --yes hdf5
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b
+  - export PATH=/home/travis/miniconda/bin:$PATH
+  - conda update --yes conda
+  - export HDF5_DIR=/home/travis/miniconda/
+  - conda install --yes hdf5
 script:  
   - ./test.sh 
 after_script:
