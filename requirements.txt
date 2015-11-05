@@ -1,6 +1,5 @@
 beautifulsoup4==4.4.1
 coverage==3.7.1
-Iris==2.0
 jupyter==1.0.0
 matplotlib==1.4.3
 netCDF4==1.2.1
@@ -9,6 +8,5 @@ pandas==0.17.0
 Pydap==3.1.1
 python-coveralls==2.4.1
 requests==2.8.1
-scipy==0.16.1
 simpletable==0.2.2
 xray==0.6.1
