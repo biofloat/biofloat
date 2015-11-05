@@ -71,7 +71,7 @@ def o2sat(s, pt):
     return osat
 
 def convert_to_mll(o2, s, t, p):
-    '''Convert dissolved oxygen concentration um/kg to ml/l.
+    '''Convert dissolved oxygen concentration from um/kg to ml/l.
     '''
     return gsw.rho(s, t, p) * o2 * 22.392 / 1000 
 
