@@ -79,6 +79,7 @@ class DataTest(unittest.TestCase):
 
     def test_util_convert_to_mll(self):
         # See http://www.engineeringtoolbox.com/oxygen-solubility-water-d_841.html
+        # and http://www.oceanographers.net/forums/showthread.php?1486-ask-how-to-conversion-ml-L-to-%B5mol-kg
         self.assertAlmostEqual(utils.convert_to_mll(308, 35, 5, 0), 7.1, places=1)
         self.assertAlmostEqual(utils.convert_to_mll(225.6, 36.5, 1, 0), 5.2, places=1)
         
