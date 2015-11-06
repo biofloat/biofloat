@@ -7,6 +7,7 @@ parentDir = os.path.join(os.path.dirname(__file__), "../")
 sys.path.insert(0, parentDir)
 
 from oxyfloat import ArgoData
+from oxyfloat import utils
 
 class DataTest(unittest.TestCase):
     def setUp(self):
@@ -69,6 +70,17 @@ class DataTest(unittest.TestCase):
         ad.get_float_dataframe(wmo_list, max_profiles=2)
         # Force using maximum value
         ad.get_float_dataframe(wmo_list)
+
+    def test_util_o2sat(self):
+        # See http://www.engineeringtoolbox.com/oxygen-solubility-water-d_841.html
+        self.assertAlmostEqual(utils.o2sat(35, 5), 308, places=0)
+        self.assertAlmostEqual(utils.o2sat(35, 20), 225, places=0)
+        self.assertAlmostEqual(utils.o2sat(35, 30), 190, places=0)
+
+    def test_util_convert_to_mll(self):
+        # See http://www.engineeringtoolbox.com/oxygen-solubility-water-d_841.html
+        self.assertAlmostEqual(utils.convert_to_mll(308, 35, 5, 0), 7.1, places=1)
+        self.assertAlmostEqual(utils.convert_to_mll(225.6, 36.5, 1, 0), 5.2, places=1)
         
 if __name__ == '__main__':
     unittest.main()
