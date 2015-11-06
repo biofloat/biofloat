@@ -11,6 +11,7 @@ import xray
 from bs4 import BeautifulSoup
 from contextlib import closing
 from requests.exceptions import ConnectionError
+from shutil import move
 
 # Support Python 2.7 and 3.x
 try:
@@ -108,22 +109,30 @@ class ArgoData(object):
         '''Save Pandas DataFrame to local HDF file with optional metadata dict.
         '''
         store = pd.HDFStore(self.cache_file)
-        self.logger.info('Saving DataFrame to name "...%s" in file %s',
-                                            name[-20:], self.cache_file)
+        self.logger.info('Saving DataFrame to name "%s" in file %s',
+                                              name, self.cache_file)
         store[name] = df
         if metadata:
             store.get_storer(name).attrs.metadata = metadata
         self.logger.debug('store.close()')
         store.close()
 
+        # For some reason the HDF file grows unreasonable large, so 
+        # after each addition repack it with this PyTables utility.
+        f = 'ptrepack --chunkshape=auto --propindexes --complevel=9 --complib=blosc {} {}'
+        tmp_file = '{}.tmp'.format(self.cache_file)
+        self.logger.debug('Running ptrepack on %s', self.cache_file)
+        os.system(f.format(self.cache_file, tmp_file))
+        move(tmp_file, self.cache_file)
+
     def _get_df(self, name):
         '''Get Pandas DataFrame from local HDF file or raise KeyError.
         '''
-        store = pd.HDFStore(self.cache_file)
+        store = pd.HDFStore(self.cache_file, mode='r')
         try:
             self.logger.debug('Getting "%s" from %s', name, self.cache_file)
             df = store[name]
-        except KeyError:
+        except (IOError, KeyError):
             raise
         finally:
             self.logger.debug('store.close()')
@@ -203,11 +212,12 @@ class ArgoData(object):
 
         return df
 
-    def _url_to_naturalname(self, url):
-        '''Remove HDFStore illegal characters from url and return key string.
+    def _float_profile(self, url):
+        '''Return last part of url: <wmo>P<profilenumber>
         '''
-        regex = re.compile(r"[^a-zA-Z0-9_]")
-        return regex.sub('', url)
+        regex = re.compile(r"(\d+_\d+).nc$")
+        m = regex.search(url)
+        return 'P{:s}'.format(m.group(1))
 
     def set_verbosity(self, verbosity):
         '''Change loglevel. 0: ERROR, 1: WARN, 2: INFO, 3:DEBUG.
@@ -223,7 +233,7 @@ class ArgoData(object):
         '''
         try:
             df = self._get_df(self._STATUS)
-        except KeyError:
+        except (IOError, KeyError):
             self.logger.debug('Could not read status from cache, loading it.')
             self._put_df(self._status_to_df(), self._STATUS)
             df = self._get_df(self._STATUS)
@@ -232,12 +242,6 @@ class ArgoData(object):
                        '(AGE >= {:d})'.format(age_gte))
 
         return odf['WMO'].tolist()
-
-        #odf = df.loc[(df.loc[:, 'OXYGEN'] == 1) & 
-        #             (df.loc[:, 'GREYLIST'] == 0) & 
-        #             (df.loc[:, 'AGE'] > age_gte), :]
-
-        #return odf.ix[:, 'WMO'].tolist()
 
     def get_dac_urls(self, desired_float_numbers):
         '''Return dictionary of Data Assembly Centers keyed by wmo number.
@@ -383,7 +387,7 @@ class ArgoData(object):
                 if i > max_profiles:
                     self.logger.info('Stopping at max_profiles = %s', max_profiles)
                     break
-                key = self._url_to_naturalname(url)
+                key = self._float_profile(url)
                 try:
                     df = self._get_df(key)
                 except KeyError:
