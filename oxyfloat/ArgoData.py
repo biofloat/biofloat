@@ -379,9 +379,6 @@ class ArgoData(object):
             df = pd.DataFrame()
 
         self._put_df(df, key, {'url', url}, append_profile_key=True)
-        if not (count % 10):
-            self.logger.info('Repacking cache file after profile count of 10')
-            self._repack_hdf()
 
         return df
 
@@ -417,6 +414,8 @@ class ArgoData(object):
                 if append_df:
                     float_df = float_df.append(df)
 
-        self._repack_hdf()
+            self.logger.info('Repacking cache file')
+            self._repack_hdf()
+
         return float_df
 
