@@ -6,7 +6,7 @@ parent_dir = join(dirname(__file__), "../")
 sys.path.insert(0, parent_dir)
 
 
-from oxyfloat import ArgoData
+from biofloat import ArgoData
 
 class ArgoDataLoader(object):
 
@@ -43,7 +43,7 @@ class ArgoDataLoader(object):
         if self.args.cache_dir:
             cache_dir = self.args.cache_dir
         else:
-            cache_dir = abspath(join(dirname(__file__), "../oxyfloat"))
+            cache_dir = abspath(join(dirname(__file__), "../biofloat"))
     
         cache_file = abspath(join(cache_dir, cache_file))
 
@@ -73,7 +73,7 @@ class ArgoDataLoader(object):
     
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
                     description='Script to load local HDF cache with Argo float data.\n'
-                                'Default cache file is located in oxyfloat module\n'
+                                'Default cache file is located in biofloat module\n'
                                 'directory named with constraints used to build the\n'
                                 'cache',
                     epilog=examples)
@@ -88,7 +88,7 @@ class ArgoDataLoader(object):
                             help='Select pressures less than this value')
         parser.add_argument('--cache_file', action='store', help='Override default file')
         parser.add_argument('--cache_dir', action='store', help='Directory for cache file'
-                            ' otherwise it is put in the oxyfloat module directory')
+                            ' otherwise it is put in the biofloat module directory')
         parser.add_argument('-v', '--verbose', nargs='?', choices=[0,1,2,3], type=int,
                             help='0: ERROR, 1: WARN, 2: INFO, 3:DEBUG', default=0, const=2)
 

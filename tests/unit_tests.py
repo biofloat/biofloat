@@ -6,8 +6,8 @@ import unittest
 parentDir = os.path.join(os.path.dirname(__file__), "../")
 sys.path.insert(0, parentDir)
 
-from oxyfloat import ArgoData
-from oxyfloat import utils
+from biofloat import ArgoData
+from biofloat import utils
 
 class DataTest(unittest.TestCase):
     def setUp(self):
@@ -15,7 +15,7 @@ class DataTest(unittest.TestCase):
         self.good_oga_floats = ['1900650']
         self.bad_oga_floats = ['1901158']
 
-    def test_get_oxyfloats(self):
+    def test_get_biofloats(self):
         self.oga_floats = self.ad.get_oxy_floats_from_status()
         self.assertNotEqual(len(self.oga_floats), 0)
 
@@ -49,7 +49,7 @@ class DataTest(unittest.TestCase):
         self.assertEqual(len(df), 0)
 
     def test_cache_file(self):
-        ad = ArgoData(cache_file='/tmp/oxyfloat_cache_file.hdf')
+        ad = ArgoData(cache_file='/tmp/biofloat_cache_file.hdf')
         ad.set_verbosity(1)
 
     def test_fixed_cache_file(self):
@@ -62,7 +62,7 @@ class DataTest(unittest.TestCase):
         adl = ArgoDataLoader()
         adl.args = Namespace(age=3000, profiles=1)
         cache_file = os.path.abspath(
-                     os.path.join(parent_dir, 'oxyfloat', adl.short_cache_file()))
+                     os.path.join(parent_dir, 'biofloat', adl.short_cache_file()))
 
         ad = ArgoData(verbosity=2, cache_file=cache_file)
         wmo_list = ad.get_oxy_floats_from_status(age_gte=age)
