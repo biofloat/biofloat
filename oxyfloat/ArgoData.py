@@ -105,30 +105,38 @@ class ArgoData(object):
             self.cache_file = os.path.abspath(os.path.join(
                               os.path.dirname(__file__), 'oxyfloat_cache.hdf'))
 
-    def _put_df(self, df, name, metadata=None):
+    def _repack_hdf(self):
+        '''Execute the ptrepack command on the cache_file.
+        '''
+        # For some reason the HDF file grows unreasonable large. These
+        # commands compress the file saving a lot of disk space.
+        f = 'ptrepack --chunkshape=auto --propindexes --complevel=9 --complib=blosc {} {}'
+        tmp_file = '{}.tmp'.format(self.cache_file)
+        self.logger.debug('Running ptrepack on %s', self.cache_file)
+        ret = os.system(f.format(self.cache_file, tmp_file))
+        self.logger.debug('return code = %s', ret)
+        self.logger.debug('Moving tmp file back to original')
+        ret = move(tmp_file, self.cache_file)
+        self.logger.debug('return code = %s', ret)
+
+    def _put_df(self, df, name, metadata=None, append_profile_key=False):
         '''Save Pandas DataFrame to local HDF file with optional metadata dict.
         '''
-        store = pd.HDFStore(self.cache_file)
-        self.logger.info('Saving DataFrame to name "%s" in file %s',
+        store = pd.HDFStore(self.cache_file, complib='blosc', complevel=9)
+        self.logger.debug('Saving DataFrame to name "%s" in file %s',
                                               name, self.cache_file)
         store[name] = df
         if metadata:
             store.get_storer(name).attrs.metadata = metadata
+        ##if append_profile_key and not df.empty:
+        ##    store.append('profile_keys', pd.Series(name))
         self.logger.debug('store.close()')
         store.close()
-
-        # For some reason the HDF file grows unreasonable large, so 
-        # after each addition repack it with this PyTables utility.
-        f = 'ptrepack --chunkshape=auto --propindexes --complevel=9 --complib=blosc {} {}'
-        tmp_file = '{}.tmp'.format(self.cache_file)
-        self.logger.debug('Running ptrepack on %s', self.cache_file)
-        os.system(f.format(self.cache_file, tmp_file))
-        move(tmp_file, self.cache_file)
 
     def _get_df(self, name):
         '''Get Pandas DataFrame from local HDF file or raise KeyError.
         '''
-        store = pd.HDFStore(self.cache_file, mode='r')
+        store = pd.HDFStore(self.cache_file)
         try:
             self.logger.debug('Getting "%s" from %s', name, self.cache_file)
             df = store[name]
@@ -203,6 +211,9 @@ class ArgoData(object):
             for v in self.variables ^ self._coordinates:
                 try:
                     s = pd.Series(ds[v].values[0][pres_indices], index=indices)
+                    if s.dropna().empty:
+                        self.logger.warn('%s: N_PROF [0] empty, trying [1]', v)
+                        s = pd.Series(ds[v].values[1][pres_indices], index=indices)
                     self.logger.debug('Added %s to DataFrame', v)
                     df[v] = s
                 except KeyError:
@@ -350,12 +361,13 @@ class ArgoData(object):
 
         return df
 
-    def _save_profile(self, url, count, opendap_urls, wmo, key, max_pressure):
+    def _save_profile(self, url, count, opendap_urls, wmo, key, max_pressure,
+                            float_msg):
         '''Put profile data into the local HDF cache.
         '''
         try:
-            self.logger.info('Profile %s of %s from %s', count, 
-                              len(opendap_urls), url)
+            self.logger.info('%s, Profile %s of %s, key = %s', 
+                             float_msg, count, len(opendap_urls), key)
             df = self._profile_to_dataframe(wmo, url, max_pressure)
             if not df.empty and self._oxygen_required:
                 df = self._validate_oxygen(df, url)
@@ -363,7 +375,10 @@ class ArgoData(object):
             self.logger.warn(str(e))
             df = pd.DataFrame()
 
-        self._put_df(df, key, {'url', url})
+        self._put_df(df, key, {'url', url}, append_profile_key=True)
+        if not (count % 10):
+            self.logger.info('Repacking cache file after profile count of 10')
+            self._repack_hdf()
 
         return df
 
@@ -381,7 +396,8 @@ class ArgoData(object):
 
         float_df = pd.DataFrame()
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
-            self.logger.info('Float %s of %s, wmo = %s', f + 1, len(wmo_list), wmo)
+            float_msg = 'WMO {}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
+            self.logger.info(float_msg)
             opendap_urls = self.get_profile_opendap_urls(dac_url)
             for i, url in enumerate(opendap_urls):
                 if i > max_profiles:
@@ -391,7 +407,8 @@ class ArgoData(object):
                 try:
                     df = self._get_df(key)
                 except KeyError:
-                    df = self._save_profile(url, i, opendap_urls, wmo, key, max_pressure)
+                    df = self._save_profile(url, i, opendap_urls, wmo, key, 
+                                            max_pressure, float_msg)
 
                 self.logger.debug(df.head())
                 if append_df:
