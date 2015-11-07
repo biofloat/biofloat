@@ -38,21 +38,28 @@ class ArgoDataLoader(object):
         if self.args.cache_file:
             cache_file = self.args.cache_file
         else:
-            if self.args.cache_dir:
-                cache_dir = self.args.cache_dir
-            else:
-                cache_dir = abspath(join(dirname(__file__), "../oxyfloat"))
-
             cache_file = join(cache_dir, self.short_cache_file())
+
+        if self.args.cache_dir:
+            cache_dir = self.args.cache_dir
+        else:
+            cache_dir = abspath(join(dirname(__file__), "../oxyfloat"))
+    
+        cache_file = abspath(join(cache_dir, cache_file))
 
         print(('Loading cache file {}...').format(cache_file))
         ad = ArgoData(verbosity=self.args.verbose, cache_file=cache_file)
 
-        wmo_list = ad.get_oxy_floats_from_status(age_gte=self.args.age)
+        if self.args.age:
+            wmo_list = ad.get_oxy_floats_from_status(age_gte=self.args.age)
+        elif self.args.wmos:
+            wmo_list = self.args.wmos
+
         ad.get_float_dataframe(wmo_list, max_profiles=self.args.profiles, 
                                          max_pressure=self.args.pressure,
                                          append_df=False)
-        print(('Finished loading cache file {}...').format(cache_file))
+        ad._repack_hdf()
+        print(('Finished loading cache file {}').format(cache_file))
 
     def process_command_line(self):
         import argparse
@@ -71,8 +78,10 @@ class ArgoDataLoader(object):
                                 'cache',
                     epilog=examples)
                                              
-        parser.add_argument('--age', action='store', type=int, default=340,
+        parser.add_argument('--age', action='store', type=int,
                             help='Select age greater than or equal') 
+        parser.add_argument('--wmos', action='store', nargs='*', default=[],
+                            help='One or more WMO numbers') 
         parser.add_argument('--profiles', action='store', type=int,
                             help='Maximum number of profiles')
         parser.add_argument('--pressure', action='store', type=int,
