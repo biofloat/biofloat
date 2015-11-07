@@ -122,7 +122,7 @@ class ArgoData(object):
     def _put_df(self, df, name, metadata=None, append_profile_key=False):
         '''Save Pandas DataFrame to local HDF file with optional metadata dict.
         '''
-        store = pd.HDFStore(self.cache_file, complib='blosc', complevel=9)
+        store = pd.HDFStore(self.cache_file)
         self.logger.debug('Saving DataFrame to name "%s" in file %s',
                                               name, self.cache_file)
         store[name] = df
@@ -213,7 +213,10 @@ class ArgoData(object):
                     s = pd.Series(ds[v].values[0][pres_indices], index=indices)
                     if s.dropna().empty:
                         self.logger.warn('%s: N_PROF [0] empty, trying [1]', v)
-                        s = pd.Series(ds[v].values[1][pres_indices], index=indices)
+                        try:
+                            s = pd.Series(ds[v].values[1][pres_indices], index=indices)
+                        except IndexError:
+                            pass
                     self.logger.debug('Added %s to DataFrame', v)
                     df[v] = s
                 except KeyError:
@@ -414,5 +417,6 @@ class ArgoData(object):
                 if append_df:
                     float_df = float_df.append(df)
 
+        self._repack_hdf()
         return float_df
 
