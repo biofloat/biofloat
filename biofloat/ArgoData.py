@@ -394,6 +394,7 @@ class ArgoData(object):
         max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
         max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
 
+        save_count = 0
         float_df = pd.DataFrame()
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
             float_msg = 'WMO {}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
@@ -403,19 +404,24 @@ class ArgoData(object):
                 if i > max_profiles:
                     self.logger.info('Stopping at max_profiles = %s', max_profiles)
                     break
-                key = self._float_profile(url)
+                try:
+                    key = self._float_profile(url)
+                except AttributeError:
+                    continue
                 try:
                     df = self._get_df(key)
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, 
                                             max_pressure, float_msg)
+                    save_count += 1
 
                 self.logger.debug(df.head())
                 if append_df:
                     float_df = float_df.append(df)
 
-            self.logger.info('Repacking cache file')
-            self._repack_hdf()
+            if save_count:
+                self.logger.info('Repacking cache file')
+                self._repack_hdf()
 
         return float_df
 
