@@ -1,24 +1,20 @@
-oxyfloat
+biofloat
 --------
 
-[![Build Status](https://travis-ci.org/MBARIMike/oxyfloat.svg?branch=master)](https://travis-ci.org/MBARIMike/oxyfloat)
-[![Coverage Status](https://coveralls.io/repos/MBARIMike/oxyfloat/badge.svg?branch=master&service=github)](https://coveralls.io/github/MBARIMike/oxyfloat?branch=master)
-[![Code Health](https://landscape.io/github/MBARIMike/oxyfloat/master/landscape.svg?style=flat)](https://landscape.io/github/MBARIMike/oxyfloat/master)
+[![Build Status](https://travis-ci.org/MBARIMike/biofloat.svg?branch=master)](https://travis-ci.org/MBARIMike/biofloat)
+[![Coverage Status](https://coveralls.io/repos/MBARIMike/biofloat/badge.svg?branch=master&service=github)](https://coveralls.io/github/MBARIMike/biofloat?branch=master)
+[![Code Health](https://landscape.io/github/MBARIMike/biofloat/master/landscape.svg?style=flat)](https://landscape.io/github/MBARIMike/biofloat/master)
 
-Python module oxyfloat is designed to enable oceanographers to perform quality 
-control operations on oxygen data from [Argo ocean drifting profiling floats](https://en.wikipedia.org/wiki/Argo_(oceanography)).
+Python module biofloat is designed to simplify using 
+[Bio-Argo data](https://en.wikipedia.org/wiki/Argo_(oceanography)) 
+in a Python/Jupyter Notebook programming environment.
 
 #### Installation
 
-##### Bare-bones Unix
+For now one must clone the repository and install prerequisite software. The goal is to have installation
+on top of Anaconda or Canopy to be as simple as:
 
-    sudo yum -y install hdf scipy blas blas-devel lapack lapack-devel
-    pip install oxyfloat
-
-##### Anaconda or Canopy
-
-    pip install pydap
-    pip install oxyfloat
+    pip install biofloat
 
 For plotting data on a map [basemap needs to be installed](http://matplotlib.org/basemap/users/installing.html).
 
