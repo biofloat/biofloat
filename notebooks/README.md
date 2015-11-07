@@ -1,7 +1,7 @@
 Jupyter Notebooks for oxyfloat 
 ------------------------------
 
-To execute these Notebooks follow [these instructions to install oxyfloat]('../README.md') and clone this repository.
+To execute these Notebooks follow [these instructions to install oxyfloat](../README.md) and clone this repository.
 
 Change to this directory on your computer and execute this at the command line:
 
