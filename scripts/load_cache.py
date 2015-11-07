@@ -38,7 +38,7 @@ class ArgoDataLoader(object):
         if self.args.cache_file:
             cache_file = self.args.cache_file
         else:
-            cache_file = join(cache_dir, self.short_cache_file())
+            cache_file = self.short_cache_file()
 
         if self.args.cache_dir:
             cache_dir = self.args.cache_dir
@@ -58,7 +58,7 @@ class ArgoDataLoader(object):
         ad.get_float_dataframe(wmo_list, max_profiles=self.args.profiles, 
                                          max_pressure=self.args.pressure,
                                          append_df=False)
-        ad._repack_hdf()
+
         print(('Finished loading cache file {}').format(cache_file))
 
     def process_command_line(self):
