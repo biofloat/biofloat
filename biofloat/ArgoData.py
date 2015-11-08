@@ -188,8 +188,11 @@ class ArgoData(object):
     def _profile_to_dataframe(self, wmo, url, max_pressure):
         '''Return a Pandas DataFrame of profiling float data from data at url.
         '''
-        self.logger.debug('Opening %s', url)
-        ds = xray.open_dataset(url)
+        try:
+            self.logger.debug('Opening %s', url)
+            ds = xray.open_dataset(url)
+        except pydap.exceptions.ServerError:
+            self.logger.error('ServerError opening %s', url)
 
         self.logger.debug('Checking %s for our desired variables', url)
         for v in self.variables:
@@ -370,7 +373,7 @@ class ArgoData(object):
         '''
         try:
             self.logger.info('%s, Profile %s of %s, key = %s', 
-                             float_msg, count, len(opendap_urls), key)
+                             float_msg, count + 1, len(opendap_urls), key)
             df = self._profile_to_dataframe(wmo, url, max_pressure)
             if not df.empty and self._oxygen_required:
                 df = self._validate_oxygen(df, url)
