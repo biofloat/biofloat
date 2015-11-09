@@ -51,6 +51,7 @@ class ArgoData(object):
     _ageRE = 'age([0-9]+)'
     _profilesRE = 'profiles([0-9]+)'
     _pressureRE = 'pressure([0-9]+)'
+    _compparms = dict(complib='zlib', complevel=9)
 
     def __init__(self, verbosity=0, cache_file=None, oxygen_required=True,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
@@ -119,17 +120,16 @@ class ArgoData(object):
         ret = move(tmp_file, self.cache_file)
         self.logger.debug('return code = %s', ret)
 
-    def _put_df(self, df, name, metadata=None, append_profile_key=False):
+    def _put_df(self, df, name, metadata=None):
         '''Save Pandas DataFrame to local HDF file with optional metadata dict.
         '''
         store = pd.HDFStore(self.cache_file)
         self.logger.debug('Saving DataFrame to name "%s" in file %s',
                                               name, self.cache_file)
-        store[name] = df
-        if metadata:
+        store.append(name, df, format='table', **self._compparms)
+        if metadata and store.get_storer(name):
             store.get_storer(name).attrs.metadata = metadata
-        ##if append_profile_key and not df.empty:
-        ##    store.append('profile_keys', pd.Series(name))
+
         self.logger.debug('store.close()')
         store.close()
 
@@ -229,12 +229,14 @@ class ArgoData(object):
 
         return df
 
-    def _float_profile(self, url):
-        '''Return last part of url: <wmo>P<profilenumber>
+    def _float_profile_key(self, url):
+        '''Return last part of url as key that serves as a PyTables/HDF 
+        group name: WMO_<wmo>/P<profilenumber>. The parent group WMO_<wmo>
+        must be created before this key can be used to put data.
         '''
         regex = re.compile(r"(\d+_\d+).nc$")
         m = regex.search(url)
-        return 'P{:s}'.format(m.group(1))
+        return '/WMO_{:s}'.format(m.group(1).replace('_', '/P'))
 
     def set_verbosity(self, verbosity):
         '''Change loglevel. 0: ERROR, 1: WARN, 2: INFO, 3:DEBUG.
@@ -368,12 +370,17 @@ class ArgoData(object):
         return df
 
     def _save_profile(self, url, count, opendap_urls, wmo, key, max_pressure,
-                            float_msg):
+                            float_msg, max_profiles):
         '''Put profile data into the local HDF cache.
         '''
         try:
-            self.logger.info('%s, Profile %s of %s, key = %s', 
-                             float_msg, count + 1, len(opendap_urls), key)
+            if max_pressure:
+                self.logger.info('%s, Profile %s of %s(%s), key = %s', 
+                     float_msg, count + 1, len(opendap_urls), max_profiles, key)
+            else:
+                self.logger.info('%s, Profile %s of %s, key = %s', 
+                                 float_msg, count + 1, len(opendap_urls), key)
+
             df = self._profile_to_dataframe(wmo, url, max_pressure)
             if not df.empty and self._oxygen_required:
                 df = self._validate_oxygen(df, url)
@@ -381,7 +388,7 @@ class ArgoData(object):
             self.logger.warn(str(e))
             df = pd.DataFrame()
 
-        self._put_df(df, key, {'url', url}, append_profile_key=True)
+        self._put_df(df, key, dict(url=url))
 
         return df
 
@@ -400,31 +407,32 @@ class ArgoData(object):
         save_count = 0
         float_df = pd.DataFrame()
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
-            float_msg = 'WMO {}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
-            self.logger.info(float_msg)
+            float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
+            self.logger.info('Creating HDF group for ' + float_msg)
+            self._put_df(pd.DataFrame(), 'WMO_{}'.format(dac_url.split('/')[-3]))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
             for i, url in enumerate(opendap_urls):
-                if i > max_profiles:
+                if i >= max_profiles:
                     self.logger.info('Stopping at max_profiles = %s', max_profiles)
                     break
                 try:
-                    key = self._float_profile(url)
+                    key = self._float_profile_key(url)
                 except AttributeError:
                     continue
                 try:
                     df = self._get_df(key)
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, 
-                                            max_pressure, float_msg)
+                                            max_pressure, float_msg, max_profiles)
                     save_count += 1
 
                 self.logger.debug(df.head())
                 if append_df:
                     float_df = float_df.append(df)
 
-            if save_count:
-                self.logger.info('Repacking cache file')
-                self._repack_hdf()
+            #if save_count:
+            #    self.logger.info('Repacking cache file')
+            #    self._repack_hdf()
 
         return float_df
 

@@ -23,7 +23,7 @@ class ArgoDataLoader(object):
 
         cache_file = ArgoData._fixed_cache_base
         # Lop off leading '_' and trailing 'RE' from regex values in ArgoData
-        for item in [a[1:-2] for a in dir(ArgoData()) 
+        for item in [a[1:-2] for a in dir(ArgoData) 
                                  if not callable(a) and a.endswith("RE")]:
             try:
                 cache_file += '_{}{:d}'.format(item, vars(self.args)[item])
@@ -52,8 +52,8 @@ class ArgoDataLoader(object):
 
         if self.args.age:
             wmo_list = ad.get_oxy_floats_from_status(age_gte=self.args.age)
-        elif self.args.wmos:
-            wmo_list = self.args.wmos
+        elif self.args.wmo:
+            wmo_list = self.args.wmo
 
         ad.get_float_dataframe(wmo_list, max_profiles=self.args.profiles, 
                                          max_pressure=self.args.pressure,
@@ -80,7 +80,7 @@ class ArgoDataLoader(object):
                                              
         parser.add_argument('--age', action='store', type=int,
                             help='Select age greater than or equal') 
-        parser.add_argument('--wmos', action='store', nargs='*', default=[],
+        parser.add_argument('--wmo', action='store', nargs='*', default=[],
                             help='One or more WMO numbers') 
         parser.add_argument('--profiles', action='store', type=int,
                             help='Maximum number of profiles')
