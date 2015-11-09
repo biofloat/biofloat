@@ -126,7 +126,7 @@ class ArgoData(object):
         store = pd.HDFStore(self.cache_file)
         self.logger.debug('Saving DataFrame to name "%s" in file %s',
                                               name, self.cache_file)
-        store.put(name, df, format='table', **self._compparms)
+        store.append(name, df, format='table', **self._compparms)
         if metadata and store.get_storer(name):
             store.get_storer(name).attrs.metadata = metadata
 
@@ -236,7 +236,7 @@ class ArgoData(object):
         '''
         regex = re.compile(r"(\d+_\d+).nc$")
         m = regex.search(url)
-        return 'WMO_{:s}'.format(m.group(1).replace('_', '/P'))
+        return '/WMO_{:s}'.format(m.group(1).replace('_', '/P'))
 
     def set_verbosity(self, verbosity):
         '''Change loglevel. 0: ERROR, 1: WARN, 2: INFO, 3:DEBUG.
@@ -370,12 +370,17 @@ class ArgoData(object):
         return df
 
     def _save_profile(self, url, count, opendap_urls, wmo, key, max_pressure,
-                            float_msg):
+                            float_msg, max_profiles):
         '''Put profile data into the local HDF cache.
         '''
         try:
-            self.logger.info('%s, Profile %s of %s, key = %s', 
-                             float_msg, count + 1, len(opendap_urls), key)
+            if max_pressure:
+                self.logger.info('%s, Profile %s of %s(%s), key = %s', 
+                     float_msg, count + 1, len(opendap_urls), max_profiles, key)
+            else:
+                self.logger.info('%s, Profile %s of %s, key = %s', 
+                                 float_msg, count + 1, len(opendap_urls), key)
+
             df = self._profile_to_dataframe(wmo, url, max_pressure)
             if not df.empty and self._oxygen_required:
                 df = self._validate_oxygen(df, url)
@@ -418,7 +423,7 @@ class ArgoData(object):
                     df = self._get_df(key)
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, 
-                                            max_pressure, float_msg)
+                                            max_pressure, float_msg, max_profiles)
                     save_count += 1
 
                 self.logger.debug(df.head())
