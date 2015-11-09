@@ -47,7 +47,7 @@ class ArgoData(object):
     # Names and search patterns for cache file naming/parsing
     # Make private and ignore pylint's complaints
     # No other names in this class can end in 'RE'
-    _fixed_cache_base = 'oxyfloat_fixed_cache'
+    _fixed_cache_base = 'biofloat_fixed_cache'
     _ageRE = 'age([0-9]+)'
     _profilesRE = 'profiles([0-9]+)'
     _pressureRE = 'pressure([0-9]+)'
@@ -66,7 +66,7 @@ class ArgoData(object):
         
         Args:
             verbosity (int): range(4), default=0
-            cache_file (str): Defaults to oxyfloat_cache.hdf next to module
+            cache_file (str): Defaults to biofloat_cache.hdf next to module
             oxygen_required (boolean): Save profile only if oxygen data exist
             status_url (str): Source URL for Argo status data, defaults to
                 http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt
@@ -80,8 +80,8 @@ class ArgoData(object):
 
             There are 3 kinds of cache files:
 
-            1. The default file named oxyfloat_cache.hdf that is automatically
-               placed in the oxyfloat module directory. It will cache whatever
+            1. The default file named biofloat_cache.hdf that is automatically
+               placed in the biofloat module directory. It will cache whatever
                data is requested via call to get_float_dataframe().
             2. Specially named cache_files produced by the load_cache.py program
                in the scripts directory. These files are built with constraints
@@ -106,7 +106,7 @@ class ArgoData(object):
         else:
             # Write to same directory where this module is installed
             self.cache_file = os.path.abspath(os.path.join(
-                              os.path.dirname(__file__), 'oxyfloat_cache.hdf'))
+                              os.path.dirname(__file__), 'biofloat_cache.hdf'))
 
     def _repack_hdf(self):
         '''Execute the ptrepack command on the cache_file.
