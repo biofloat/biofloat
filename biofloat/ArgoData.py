@@ -51,6 +51,7 @@ class ArgoData(object):
     _ageRE = 'age([0-9]+)'
     _profilesRE = 'profiles([0-9]+)'
     _pressureRE = 'pressure([0-9]+)'
+    _compparms = dict(complib='zlib', complevel=9)
 
     def __init__(self, verbosity=0, cache_file=None, oxygen_required=True,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
@@ -125,8 +126,8 @@ class ArgoData(object):
         store = pd.HDFStore(self.cache_file)
         self.logger.debug('Saving DataFrame to name "%s" in file %s',
                                               name, self.cache_file)
-        store[name] = df
-        if metadata:
+        store.put(name, df, format='table', **self._compparms)
+        if metadata and store.get_storer(name):
             store.get_storer(name).attrs.metadata = metadata
 
         self.logger.debug('store.close()')
@@ -403,11 +404,10 @@ class ArgoData(object):
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
             float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
             self.logger.info('Creating HDF group for ' + float_msg)
-            self._put_df(pd.DataFrame(), 'WMO_'.format(dac_url.split('/')[-3]), 
-                                          dict(url=dac_url))
+            self._put_df(pd.DataFrame(), 'WMO_{}'.format(dac_url.split('/')[-3]))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
             for i, url in enumerate(opendap_urls):
-                if i > max_profiles:
+                if i >= max_profiles:
                     self.logger.info('Stopping at max_profiles = %s', max_profiles)
                     break
                 try:
@@ -425,9 +425,9 @@ class ArgoData(object):
                 if append_df:
                     float_df = float_df.append(df)
 
-            if save_count:
-                self.logger.info('Repacking cache file')
-                self._repack_hdf()
+            #if save_count:
+            #    self.logger.info('Repacking cache file')
+            #    self._repack_hdf()
 
         return float_df
 
