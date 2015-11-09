@@ -51,7 +51,9 @@ class ArgoData(object):
     _ageRE = 'age([0-9]+)'
     _profilesRE = 'profiles([0-9]+)'
     _pressureRE = 'pressure([0-9]+)'
+
     _compparms = dict(complib='zlib', complevel=9)
+    _MAX_VALUE = 10000000000
 
     def __init__(self, verbosity=0, cache_file=None, oxygen_required=True,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
@@ -338,7 +340,7 @@ class ArgoData(object):
             cache_file_value = self.cache_file_parms[parm]
         except KeyError:
             # Return a ridiculously large integer to force reading all data
-            adjusted_value =  10000000000
+            adjusted_value =  self._MAX_VALUE
         except AttributeError:
             # No cache_file sepcified
             pass
@@ -356,7 +358,7 @@ class ArgoData(object):
 
         if not adjusted_value:
             # Final check for value = None and not set by cache_file
-            adjusted_value = 10000000000
+            adjusted_value = self._MAX_VALUE
 
         return adjusted_value
 
@@ -373,14 +375,18 @@ class ArgoData(object):
                             float_msg, max_profiles):
         '''Put profile data into the local HDF cache.
         '''
+        m_t = '{}, Profile {} of {}, key = {}'
+        m_t_mp = '{}, Profile {} of {}({}), key = {}'
+        msg = m_t.format(float_msg, count + 1, len(opendap_urls), key)
         try:
-            if max_pressure:
-                self.logger.info('%s, Profile %s of %s(%s), key = %s', 
-                     float_msg, count + 1, len(opendap_urls), max_profiles, key)
-            else:
-                self.logger.info('%s, Profile %s of %s, key = %s', 
-                                 float_msg, count + 1, len(opendap_urls), key)
+            if max_profiles != self._MAX_VALUE:
+                msg = m_t_mp.format(float_msg, count + 1, len(opendap_urls), 
+                                    max_profiles, key)
+        except NameError:
+            pass
 
+        try:
+            self.logger.info(msg)
             df = self._profile_to_dataframe(wmo, url, max_pressure)
             if not df.empty and self._oxygen_required:
                 df = self._validate_oxygen(df, url)
