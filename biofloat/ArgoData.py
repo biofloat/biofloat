@@ -119,7 +119,7 @@ class ArgoData(object):
         ret = move(tmp_file, self.cache_file)
         self.logger.debug('return code = %s', ret)
 
-    def _put_df(self, df, name, metadata=None, append_profile_key=False):
+    def _put_df(self, df, name, metadata=None):
         '''Save Pandas DataFrame to local HDF file with optional metadata dict.
         '''
         store = pd.HDFStore(self.cache_file)
@@ -128,8 +128,7 @@ class ArgoData(object):
         store[name] = df
         if metadata:
             store.get_storer(name).attrs.metadata = metadata
-        ##if append_profile_key and not df.empty:
-        ##    store.append('profile_keys', pd.Series(name))
+
         self.logger.debug('store.close()')
         store.close()
 
@@ -229,12 +228,14 @@ class ArgoData(object):
 
         return df
 
-    def _float_profile(self, url):
-        '''Return last part of url: <wmo>P<profilenumber>
+    def _float_profile_key(self, url):
+        '''Return last part of url as key that serves as a PyTables/HDF 
+        group name: WMO_<wmo>/P<profilenumber>. The parent group WMO_<wmo>
+        must be created before this key can be used to put data.
         '''
         regex = re.compile(r"(\d+_\d+).nc$")
         m = regex.search(url)
-        return 'P{:s}'.format(m.group(1))
+        return 'WMO_{:s}'.format(m.group(1).replace('_', '/P'))
 
     def set_verbosity(self, verbosity):
         '''Change loglevel. 0: ERROR, 1: WARN, 2: INFO, 3:DEBUG.
@@ -381,7 +382,7 @@ class ArgoData(object):
             self.logger.warn(str(e))
             df = pd.DataFrame()
 
-        self._put_df(df, key, {'url', url}, append_profile_key=True)
+        self._put_df(df, key, dict(url=url))
 
         return df
 
@@ -400,15 +401,17 @@ class ArgoData(object):
         save_count = 0
         float_df = pd.DataFrame()
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
-            float_msg = 'WMO {}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
-            self.logger.info(float_msg)
+            float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
+            self.logger.info('Creating HDF group for ' + float_msg)
+            self._put_df(pd.DataFrame(), 'WMO_'.format(dac_url.split('/')[-3]), 
+                                          dict(url=dac_url))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
             for i, url in enumerate(opendap_urls):
                 if i > max_profiles:
                     self.logger.info('Stopping at max_profiles = %s', max_profiles)
                     break
                 try:
-                    key = self._float_profile(url)
+                    key = self._float_profile_key(url)
                 except AttributeError:
                     continue
                 try:
