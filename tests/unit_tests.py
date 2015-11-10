@@ -13,7 +13,7 @@ class DataTest(unittest.TestCase):
     def setUp(self):
         self.ad = ArgoData(verbosity=2)
         self.good_oga_floats = ['1900650']
-        self.bad_oga_floats = ['1901158']
+        self.bad_oga_floats = ['6901464']
 
     def test_get_biofloats(self):
         self.oga_floats = self.ad.get_oxy_floats_from_status()
