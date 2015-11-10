@@ -129,7 +129,11 @@ class ArgoData(object):
         store = pd.HDFStore(self.cache_file)
         self.logger.debug('Saving DataFrame to name "%s" in file %s',
                                               name, self.cache_file)
-        store.append(name, df, format='table', **self._compparms)
+        if df.empty:
+            store.put(name, df, format='fixed')
+        else:
+            store.append(name, df, format='table', **self._compparms)
+
         if metadata and store.get_storer(name):
             store.get_storer(name).attrs.metadata = metadata
 
@@ -238,9 +242,12 @@ class ArgoData(object):
         group name: WMO_<wmo>/P<profilenumber>. The parent group WMO_<wmo>
         must be created before this key can be used to put data.
         '''
-        regex = re.compile(r"(\d+_\d+).nc$")
+        regex = re.compile(r"([a-zA-Z]+)(\d+_\d+).nc$")
         m = regex.search(url)
-        return '/WMO_{:s}'.format(m.group(1).replace('_', '/P'))
+        key = '/WMO_{:s}'.format(m.group(2).replace('_', '/P'))
+        code = m.group(1)
+
+        return key, code
 
     def set_verbosity(self, verbosity):
         '''Change loglevel. 0: ERROR, 1: WARN, 2: INFO, 3:DEBUG.
@@ -292,8 +299,28 @@ class ArgoData(object):
 
         return dac_urls
 
+    def _sort_opendap_urls(self, urls):
+        '''Organize list of Argo OpenDAP URLs so that 'D' Delayed Mode or
+        urls that contain 'D' appear before 'R' Realtime ones.
+        '''
+        durls = []
+        hasdurls = []
+        rurls = []
+        for url in urls:
+            regex = re.compile(r"([a-zA-Z]+)\d+_\d+.nc$")
+            code = regex.search(url).group(1).upper()
+            if 'D' == code:
+                durls.append(url)
+            elif 'D' in code:
+                hasdurls.append(url)
+            else:
+                rurls.append(url)
+
+        return durls + hasdurls + rurls
+
     def get_profile_opendap_urls(self, catalog_url):
-        '''Returns an iterable to the opendap urls for the profiles in catalog.
+        '''Returns list of opendap urls for the profiles in catalog. The 
+        list is ordered with Delayed mode versions before Realtime ones.
         The `catalog_url` is the .xml link for a directory on a THREDDS Data 
         Server.
         '''
@@ -315,7 +342,7 @@ class ArgoData(object):
         for e in soup.findAll('dataset', attrs={'urlpath': re.compile("nc$")}):
             urls.append(base_url + e['urlpath'])
 
-        return urls
+        return self._sort_opendap_urls(urls)
 
     def _get_cache_file_parms(self, cache_file):
         '''Return dictionary of constraint parameters from name of fixed cache file.
@@ -373,13 +400,13 @@ class ArgoData(object):
 
         return df
 
-    def _save_profile(self, url, count, opendap_urls, wmo, key, max_pressure,
-                            float_msg, max_profiles):
+    def _save_profile(self, url, count, opendap_urls, wmo, key, code,
+                            max_pressure, float_msg, max_profiles):
         '''Put profile data into the local HDF cache.
         '''
-        m_t = '{}, Profile {} of {}, key = {}'
-        m_t_mp = '{}, Profile {} of {}({}), key = {}'
-        msg = m_t.format(float_msg, count + 1, len(opendap_urls), key)
+        m_t = '{}, Profile {} of {}, key = {}, code = {}'
+        m_t_mp = '{}, Profile {} of {}({}), key = {}, code = {}'
+        msg = m_t.format(float_msg, count + 1, len(opendap_urls), key, code)
         try:
             if max_profiles != self._MAX_VALUE:
                 msg = m_t_mp.format(float_msg, count + 1, len(opendap_urls), 
@@ -416,21 +443,19 @@ class ArgoData(object):
         float_df = pd.DataFrame()
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
             float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
-            self.logger.info('Creating HDF group for ' + float_msg)
-            self._put_df(pd.DataFrame(), 'WMO_{}'.format(dac_url.split('/')[-3]))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
             for i, url in enumerate(opendap_urls):
                 if i >= max_profiles:
                     self.logger.info('Stopping at max_profiles = %s', max_profiles)
                     break
                 try:
-                    key = self._float_profile_key(url)
+                    key, code = self._float_profile_key(url)
                 except AttributeError:
                     continue
                 try:
                     df = self._get_df(key)
                 except KeyError:
-                    df = self._save_profile(url, i, opendap_urls, wmo, key, 
+                    df = self._save_profile(url, i, opendap_urls, wmo, key, code,
                                             max_pressure, float_msg, max_profiles)
                     save_count += 1
 
