@@ -29,6 +29,8 @@ class ArgoDataLoader(object):
                 value = '-'.join(vars(self.args)[item])
             except TypeError:
                 value = vars(self.args)[item]
+            except KeyError:
+                pass
 
             if value:
                 try:
@@ -53,7 +55,7 @@ class ArgoDataLoader(object):
     
         cache_file = abspath(join(cache_dir, cache_file))
 
-        print(('Loading cache file {}...').format(cache_file))
+        print(('Loading cache file {}').format(cache_file))
         ad = ArgoData(verbosity=self.args.verbose, cache_file=cache_file)
 
         if self.args.age:
