@@ -30,7 +30,7 @@ class ArgoDataLoader(object):
             except TypeError:
                 value = vars(self.args)[item]
             except KeyError:
-                pass
+                value = None
 
             if value:
                 try:
