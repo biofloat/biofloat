@@ -51,6 +51,7 @@ class ArgoData(object):
     _ageRE = 'age([0-9]+)'
     _profilesRE = 'profiles([0-9]+)'
     _pressureRE = 'pressure([0-9]+)'
+    _wmoRE = 'wmo([0-9-]+)'
 
     _compparms = dict(complib='zlib', complevel=9)
     _MAX_VALUE = 10000000000
@@ -325,7 +326,7 @@ class ArgoData(object):
                 try:
                     p = re.compile(self.__getattribute__(regex))
                     m = p.search(cache_file)
-                    parm_dict[regex[1:-2]] = int(m.group(1))
+                    parm_dict[regex[1:-2]] = m.group(1)
                 except AttributeError:
                     pass
 

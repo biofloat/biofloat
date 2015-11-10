@@ -6,15 +6,18 @@ python:
   - "3.5"
 
 before_install: 
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
-      export PATH=/home/travis/miniconda2/bin:$PATH;
-      export HDF5_DIR=/home/travis/miniconda2/;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-      export PATH=/home/travis/miniconda3/bin:$PATH;
-      export HDF5_DIR=/home/travis/miniconda3/;
-    fi
+  #- if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+  #    wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+  #    export PATH=/home/travis/miniconda2/bin:$PATH;
+  #    export HDF5_DIR=/home/travis/miniconda2/;
+  #  else
+  #    wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  #    export PATH=/home/travis/miniconda3/bin:$PATH;
+  #    export HDF5_DIR=/home/travis/miniconda3/;
+  #  fi
+  - wget https://repo.continuum.io/miniconda/Miniconda-3.9.1-Linux-x86_64.sh -O miniconda.sh;
+  - export PATH=/home/travis/miniconda/bin:$PATH;
+  - export HDF5_DIR=/home/travis/miniconda/;
   - chmod +x miniconda.sh
   - ./miniconda.sh -b
   - conda update --yes conda
