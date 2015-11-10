@@ -308,7 +308,10 @@ class ArgoData(object):
         rurls = []
         for url in urls:
             regex = re.compile(r"([a-zA-Z]+)\d+_\d+.nc$")
-            code = regex.search(url).group(1).upper()
+            try:
+                code = regex.search(url).group(1).upper()
+            except AttributeError:
+                continue
             if 'D' == code:
                 durls.append(url)
             elif 'D' in code:
@@ -410,7 +413,7 @@ class ArgoData(object):
         try:
             if max_profiles != self._MAX_VALUE:
                 msg = m_t_mp.format(float_msg, count + 1, len(opendap_urls), 
-                                    max_profiles, key)
+                                    max_profiles, key, code)
         except NameError:
             pass
 
@@ -436,8 +439,8 @@ class ArgoData(object):
         the most recent data from the float. Set append_df to False if
         calling simply to load cache_file (reduces memory requirements).
         '''
-        max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
-        max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
+        max_profiles = int(self._validate_cache_file_parm('profiles', max_profiles))
+        max_pressure = int(self._validate_cache_file_parm('pressure', max_pressure))
 
         save_count = 0
         float_df = pd.DataFrame()
