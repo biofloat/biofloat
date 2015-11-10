@@ -191,11 +191,13 @@ class ArgoData(object):
     def _profile_to_dataframe(self, wmo, url, max_pressure):
         '''Return a Pandas DataFrame of profiling float data from data at url.
         '''
+        df = pd.DataFrame()
         try:
             self.logger.debug('Opening %s', url)
             ds = xray.open_dataset(url)
         except pydap.exceptions.ServerError:
             self.logger.error('ServerError opening %s', url)
+            return df
 
         self.logger.debug('Checking %s for our desired variables', url)
         for v in self.variables:
@@ -209,7 +211,6 @@ class ArgoData(object):
         tuples = [(wmo, ds['JULD'].values[0], ds['LONGITUDE'].values[0], 
                         ds['LATITUDE'].values[0], round(pres, 1))
                                         for pres in pressures]
-        df = pd.DataFrame()
         if tuples:
             indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 
                                                         'lon', 'lat', 'pressure'])
