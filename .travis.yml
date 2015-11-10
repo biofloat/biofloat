@@ -21,12 +21,13 @@ before_install:
   #    export PATH=/home/travis/miniconda3/bin:$PATH;
   #    export HDF5_DIR=/home/travis/miniconda3/;
   #  fi
+  - sudo apt-get update
   - wget https://repo.continuum.io/miniconda/Miniconda-3.9.1-Linux-x86_64.sh -O miniconda.sh;
   - chmod +x miniconda.sh;
   - ./miniconda.sh -b;
   - export PATH=/home/travis/miniconda/bin:$PATH;
-  - export HDF5_DIR=/home/travis/miniconda/;
   - conda update --yes conda
+  - export HDF5_DIR=/home/travis/miniconda/;
   - conda install --yes hdf5
 script:  
   - ./test.sh 
