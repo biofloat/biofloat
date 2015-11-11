@@ -6,12 +6,23 @@ python:
   - "3.5"
 
 before_install: 
-  - sudo apt-get update
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda-3.9.1-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda-3.9.1-Linux-x86_64.sh -O miniconda.sh;
-    fi
+  # Requires (probably):
+  # sudo apt-get install liblapack-dev gfortran python-scipy libblas-dev libsuitesparse-dev swig
+  #- if [ ${TRAVIS_PYTHON_VERSION:0:1} == "2" ]; then
+  #    wget https://repo.continuum.io/miniconda/Miniconda2-3.9.1-Linux-x86_64.sh -O miniconda.sh;
+  #    chmod +x miniconda.sh;
+  #    ./miniconda.sh -b;
+  #    export PATH=/home/travis/miniconda2/bin:$PATH;
+  #    export HDF5_DIR=/home/travis/miniconda2/;
+  #  else
+  #    wget https://repo.continuum.io/miniconda/Miniconda3-3.9.1-Linux-x86_64.sh -O miniconda.sh;
+  #    chmod +x miniconda.sh;
+  #    ./miniconda.sh -b;
+  #    export PATH=/home/travis/miniconda3/bin:$PATH;
+  #    export HDF5_DIR=/home/travis/miniconda3/;
+  #  fi
+  ##- sudo apt-get update
+  - wget https://repo.continuum.io/miniconda/Miniconda-3.9.1-Linux-x86_64.sh -O miniconda.sh
   - chmod +x miniconda.sh
   - ./miniconda.sh -b
   - export PATH=/home/travis/miniconda/bin:$PATH
@@ -21,7 +32,7 @@ before_install:
 script:  
   - ./test.sh 
 after_script:
-  - COVERALLS_REPO_TOKEN=dYV7pqZBuQAUszyONWnINMoo54KZbEFNI coveralls
+  - COVERALLS_REPO_TOKEN=GVQTfxG632HknulNqtxFc2zbQBiBTc1MI coveralls
 notifications:
   email:
     on_success: change

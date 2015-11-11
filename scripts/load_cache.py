@@ -6,7 +6,7 @@ parent_dir = join(dirname(__file__), "../")
 sys.path.insert(0, parent_dir)
 
 
-from biofloat import ArgoData
+from biofloat import ArgoData, utils
 
 class ArgoDataLoader(object):
 
@@ -26,9 +26,17 @@ class ArgoDataLoader(object):
         for item in [a[1:-2] for a in dir(ArgoData) 
                                  if not callable(a) and a.endswith("RE")]:
             try:
-                cache_file += '_{}{:d}'.format(item, vars(self.args)[item])
-            except (KeyError, ValueError):
-                pass
+                value = '-'.join(vars(self.args)[item])
+            except TypeError:
+                value = vars(self.args)[item]
+            except KeyError:
+                value = None
+
+            if value:
+                try:
+                    cache_file += '_{}{}'.format(item, value)
+                except (KeyError, ValueError):
+                    pass
 
         cache_file += '.hdf'
 
@@ -47,7 +55,7 @@ class ArgoDataLoader(object):
     
         cache_file = abspath(join(cache_dir, cache_file))
 
-        print(('Loading cache file {}...').format(cache_file))
+        print(('Loading cache file {}').format(cache_file))
         ad = ArgoData(verbosity=self.args.verbose, cache_file=cache_file)
 
         if self.args.age:

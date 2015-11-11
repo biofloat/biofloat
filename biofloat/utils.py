@@ -3,7 +3,7 @@
 # https://github.com/pyoceans/python-oceans/issues/14
 # We are advised to use with caution.
 
-import gsw
+import seawater.eos80 as sw
 import numpy as np
 
 from seawater.eos80 import T68conv
@@ -73,5 +73,11 @@ def o2sat(s, pt):
 def convert_to_mll(o2, s, t, p):
     '''Convert dissolved oxygen concentration from um/kg to ml/l.
     '''
-    return gsw.rho(s, t, p) * o2 / 44.66 / 1000.0
+    return sw.dens(s, t, p) * o2 / 44.66 / 1000.0
+
+def make_df_float_indexes(path):
+    '''Given a path to an HDF biofloat cache file walk its groups and 
+    write float index lists back to it.
+    '''
+    store = pd.HDFStore(path)
 
