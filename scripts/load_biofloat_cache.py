@@ -5,13 +5,12 @@ from os.path import join, dirname, abspath
 parent_dir = join(dirname(__file__), "../")
 sys.path.insert(0, parent_dir)
 
-
-from biofloat import ArgoData, utils
+from biofloat import ArgoData
 
 class ArgoDataLoader(object):
 
     def short_cache_file(self):
-        '''Build cache_file short name from command line arguemnts and
+        '''Build cache_file short name from command line arguments and
         from format descriptors from ArgoData.
         '''
         # This unfortunately tricky loop finds all class variables in
@@ -74,16 +73,17 @@ class ArgoDataLoader(object):
         from argparse import RawTextHelpFormatter
 
         examples = 'Examples:' + '\n' 
-        examples = '---------' + '\n' 
-        examples += sys.argv[0] + " --age 340 --profiles 20"
-        examples += sys.argv[0] + " --age 340 --pressure 10"
+        examples += '---------' + '\n' 
+        examples += sys.argv[0] + " --age 340 --profiles 20\n"
+        examples += sys.argv[0] + " --age 340 --pressure 10\n"
+        examples += sys.argv[0] + " --wmo 1900650 1901157 5901073 -v\n"
         examples += "\n\n"
     
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
                     description='Script to load local HDF cache with Argo float data.\n'
                                 'Default cache file is located in biofloat module\n'
                                 'directory named with constraints used to build the\n'
-                                'cache',
+                                'cache file.',
                     epilog=examples)
                                              
         parser.add_argument('--age', action='store', type=int,
@@ -96,11 +96,16 @@ class ArgoDataLoader(object):
                             help='Select pressures less than this value')
         parser.add_argument('--cache_file', action='store', help='Override default file')
         parser.add_argument('--cache_dir', action='store', help='Directory for cache file'
-                            ' otherwise it is put in the biofloat module directory')
+                            ' otherwise it is \nput in the biofloat module directory')
         parser.add_argument('-v', '--verbose', nargs='?', choices=[0,1,2,3], type=int,
                             help='0: ERROR, 1: WARN, 2: INFO, 3:DEBUG', default=0, const=2)
 
         self.args = parser.parse_args()
+
+        if (not self.args.age) == (not self.args.wmo):
+            parser.print_help()
+            print "\n*** Must specify either --age or --wmo ***\n"
+            sys.exit(1)
 
 
 if __name__ == '__main__':
