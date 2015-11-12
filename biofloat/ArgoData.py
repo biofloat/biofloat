@@ -113,10 +113,15 @@ class ArgoData(object):
                               os.path.dirname(__file__), 'biofloat_cache.hdf'))
 
     def _repack_hdf(self):
-        '''Execute the ptrepack command on the cache_file.
+        '''Execute the ptrepack command on the cache_file. 
         '''
-        # For some reason the HDF file grows unreasonable large. These
-        # commands compress the file saving a lot of disk space.
+        # For some reason the HDF file grows unreasonable large with empty
+        # DataFrames used as placeholders for keys in the file.  These
+        # commands compress the file, saving a lot of disk space.  This
+        # issue has been posted on stackoverflow: http://bit.ly/1MLeHvM.  
+        # After using self._blank_df, HDF files compress by a factor of 
+        # about 4 with this ptrepack command.  Users may want to do that 
+        # if disk usage is a concern and speed of reading is not.
         f = 'ptrepack --chunkshape=auto --propindexes --complevel=9 --complib=blosc {} {}'
         tmp_file = '{}.tmp'.format(self.cache_file)
         self.logger.debug('Running ptrepack on %s', self.cache_file)
@@ -446,7 +451,6 @@ class ArgoData(object):
         max_profiles = int(self._validate_cache_file_parm('profiles', max_profiles))
         max_pressure = int(self._validate_cache_file_parm('pressure', max_pressure))
 
-        save_count = 0
         float_df = self._blank_df
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
             float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
@@ -464,15 +468,10 @@ class ArgoData(object):
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, code,
                                             max_pressure, float_msg, max_profiles)
-                    save_count += 1
 
                 self.logger.debug(df.head())
                 if append_df and df.dropna().empty:
                     float_df = float_df.append(df)
-
-            #if save_count:
-            #    self.logger.info('Repacking cache file')
-            #    self._repack_hdf()
 
         return float_df
 
