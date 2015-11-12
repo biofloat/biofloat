@@ -11,12 +11,11 @@ in a Python/Jupyter Notebook programming environment.
 
 #### Installation
 
-For now one must clone the repository and install prerequisite software. The goal is to have installation
-on top of Anaconda or Canopy to be as simple as:
+From Anaconda, Canopy, or Unix prompt:
 
     pip install biofloat
 
-For plotting data on a map [basemap needs to be installed](http://matplotlib.org/basemap/users/installing.html).
+For plotting data on a map [basemap](http://matplotlib.org/basemap/users/installing.html) needs to be installed.
 
 #### Usage
 
