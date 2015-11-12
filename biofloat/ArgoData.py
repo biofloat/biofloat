@@ -53,8 +53,11 @@ class ArgoData(object):
     _pressureRE = 'pressure([0-9]+)'
     _wmoRE = 'wmo([0-9-]+)'
 
-    _compparms = dict(complib='zlib', complevel=9)
     _MAX_VALUE = 10000000000
+    _compparms = dict(complib='zlib', complevel=9)
+
+    # PyTables: Use non-empty minimal df to minimize HDF file size
+    _blank_df = pd.DataFrame([pd.np.nan])
 
     def __init__(self, verbosity=0, cache_file=None, oxygen_required=True,
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
@@ -110,10 +113,15 @@ class ArgoData(object):
                               os.path.dirname(__file__), 'biofloat_cache.hdf'))
 
     def _repack_hdf(self):
-        '''Execute the ptrepack command on the cache_file.
+        '''Execute the ptrepack command on the cache_file. 
         '''
-        # For some reason the HDF file grows unreasonable large. These
-        # commands compress the file saving a lot of disk space.
+        # For some reason the HDF file grows unreasonable large with empty
+        # DataFrames used as placeholders for keys in the file.  These
+        # commands compress the file, saving a lot of disk space.  This
+        # issue has been posted on stackoverflow: http://bit.ly/1MLeHvM.  
+        # After using self._blank_df, HDF files compress by a factor of 
+        # about 4 with this ptrepack command.  Users may want to do that 
+        # if disk usage is a concern and speed of reading is not.
         f = 'ptrepack --chunkshape=auto --propindexes --complevel=9 --complib=blosc {} {}'
         tmp_file = '{}.tmp'.format(self.cache_file)
         self.logger.debug('Running ptrepack on %s', self.cache_file)
@@ -129,10 +137,11 @@ class ArgoData(object):
         store = pd.HDFStore(self.cache_file)
         self.logger.debug('Saving DataFrame to name "%s" in file %s',
                                               name, self.cache_file)
-        if df.empty:
+        if df.dropna().empty:
             store.put(name, df, format='fixed')
         else:
-            store.append(name, df, format='table', **self._compparms)
+            ##store.append(name, df, format='table', **self._compparms)
+            store.put(name, df, format='fixed')
 
         if metadata and store.get_storer(name):
             store.get_storer(name).attrs.metadata = metadata
@@ -399,7 +408,7 @@ class ArgoData(object):
         '''
         if df['DOXY_ADJUSTED'].dropna().empty:
             self.logger.warn('Oxygen is all NaNs in %s', url)
-            df = pd.DataFrame()
+            df = self._blank_df
 
         return df
 
@@ -420,11 +429,11 @@ class ArgoData(object):
         try:
             self.logger.info(msg)
             df = self._profile_to_dataframe(wmo, url, max_pressure)
-            if not df.empty and self._oxygen_required:
+            if not df.dropna().empty and self._oxygen_required:
                 df = self._validate_oxygen(df, url)
         except RequiredVariableNotPresent as e:
             self.logger.warn(str(e))
-            df = pd.DataFrame()
+            df = self._blank_df
 
         self._put_df(df, key, dict(url=url))
 
@@ -442,8 +451,7 @@ class ArgoData(object):
         max_profiles = int(self._validate_cache_file_parm('profiles', max_profiles))
         max_pressure = int(self._validate_cache_file_parm('pressure', max_pressure))
 
-        save_count = 0
-        float_df = pd.DataFrame()
+        float_df = self._blank_df
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
             float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
@@ -460,15 +468,10 @@ class ArgoData(object):
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, code,
                                             max_pressure, float_msg, max_profiles)
-                    save_count += 1
 
                 self.logger.debug(df.head())
-                if append_df:
+                if append_df and df.dropna().empty:
                     float_df = float_df.append(df)
-
-            #if save_count:
-            #    self.logger.info('Repacking cache file')
-            #    self._repack_hdf()
 
         return float_df
 

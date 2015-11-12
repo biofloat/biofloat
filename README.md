@@ -2,8 +2,8 @@ biofloat
 --------
 
 [![Build Status](https://travis-ci.org/MBARIMike/biofloat.svg?branch=master)](https://travis-ci.org/MBARIMike/biofloat)
-[![Coverage Status](https://coveralls.io/repos/MBARIMike/biofloat/badge.svg?branch=master&service=github)](https://coveralls.io/github/MBARIMike/biofloat?branch=master)
-[![Code Health](https://landscape.io/github/MBARIMike/biofloat/master/landscape.svg?style=flat)](https://landscape.io/github/MBARIMike/biofloat/master)
+[![Coverage Status](https://coveralls.io/repos/biofloat/biofloat/badge.svg?branch=master&service=github)](https://coveralls.io/github/biofloat/biofloat?branch=master)
+[![Code Health](https://landscape.io/github/biofloat/biofloat/master/landscape.svg?style=flat)](https://landscape.io/github/biofloat/biofloat/master)
 
 Python module biofloat is designed to simplify using 
 [Bio-Argo data](https://en.wikipedia.org/wiki/Argo_(oceanography)) 

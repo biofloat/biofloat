@@ -1,5 +1,9 @@
 language: python
 
+branches:
+  only:
+    - master
+
 python:
   - "2.7"
   - "3.4"
@@ -32,7 +36,7 @@ before_install:
 script:  
   - ./test.sh 
 after_script:
-  - COVERALLS_REPO_TOKEN=GVQTfxG632HknulNqtxFc2zbQBiBTc1MI coveralls
+  - COVERALLS_REPO_TOKEN=UQCY5mHKE12Moniy0FojjCbAsHtJWtt4v coveralls
 notifications:
   email:
     on_success: change

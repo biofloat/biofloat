@@ -75,9 +75,3 @@ def convert_to_mll(o2, s, t, p):
     '''
     return sw.dens(s, t, p) * o2 / 44.66 / 1000.0
 
-def make_df_float_indexes(path):
-    '''Given a path to an HDF biofloat cache file walk its groups and 
-    write float index lists back to it.
-    '''
-    store = pd.HDFStore(path)
-

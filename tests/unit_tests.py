@@ -46,7 +46,7 @@ class DataTest(unittest.TestCase):
         df = self.ad.get_float_dataframe(self.good_oga_floats, max_profiles=2)
         self.assertNotEqual(len(df), 0)
         df = self.ad.get_float_dataframe(self.bad_oga_floats, max_profiles=2)
-        self.assertEqual(len(df), 0)
+        self.assertEqual(len(df.dropna()), 0)
 
     def test_cache_file(self):
         ad = ArgoData(cache_file='/tmp/biofloat_cache_file.hdf')
@@ -56,8 +56,8 @@ class DataTest(unittest.TestCase):
         age = 3000      # Returns 1 float on 2 November 2015
         parent_dir = os.path.join(os.path.dirname(__file__), "../")
 
-        # Simulated what's done by load_cache.py
-        from scripts.load_cache import ArgoDataLoader
+        # Simulated what's done by load_biofloat_cache.py
+        from scripts.load_biofloat_cache import ArgoDataLoader
         from argparse import Namespace
         adl = ArgoDataLoader()
         adl.args = Namespace(age=3000, profiles=1)
