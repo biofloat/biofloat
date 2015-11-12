@@ -1,8 +1,23 @@
 from setuptools import setup, find_packages
+
 setup(
     name = "biofloat",
-    version = "0.1.1",
+    version = "0.1.17",
     packages = find_packages(),
+    requires = ['Python (>=2.7)'],
+    install_requires = [
+        'beautifulsoup4>=4.4',
+        'coverage>=4',
+        'jupyter>=1.0.0',
+        'matplotlib',
+        'numpy>=1.10',
+        'pandas>=0.17',
+        'Pydap',
+        'requests>=2.8',
+        'seawater>=3.3',
+        'simpletable>=0.2',
+        'xray>=0.6'
+    ],
     scripts = ['scripts/load_biofloat_cache.py'],
 
     # metadata for upload to PyPI
