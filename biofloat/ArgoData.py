@@ -381,26 +381,39 @@ class ArgoData(object):
         try:
             cache_file_value = self.cache_file_parms[parm]
         except KeyError:
-            # Return a ridiculously large integer to force reading all data
-            adjusted_value =  self._MAX_VALUE
+            if isinstance(value, int):
+                # Return a ridiculously large integer to force reading all data
+                adjusted_value =  self._MAX_VALUE
         except AttributeError:
             # No cache_file sepcified
             pass
 
         if value and cache_file_value:
-            if value > cache_file_value:
-                self.logger.warn("Requested %s %s exceeds cache file's parameter: %s",
-                                  parm, value, cache_file_value)
-                self.logger.info("Setting %s to %s", parm, cache_file_value)
-                adjusted_value = cache_file_value
+            if isinstance(value, int):
+                if value > cache_file_value:
+                    self.logger.warn("Requested %s %s exceeds cache file's parameter: %s",
+                                      parm, value, cache_file_value)
+                    self.logger.info("Setting %s to %s", parm, cache_file_value)
+                    adjusted_value = int(cache_file_value)
+            else:
+                floats_not_in_file = set(value) ^ set(cache_file_value.split('-'))
+                if floats_not_in_file:
+                    self.logger.warn("Requested item(s) %s %s not in fixed cache file: %s",
+                                      parm, floats_not_in_file, cache_file_value)
+                    adjusted_value = cache_file_value.split('-')
+
         elif not value and cache_file_value:
             self.logger.info("Using fixed cache file's %s value of %s", parm, 
                                                             cache_file_value)
-            adjusted_value = cache_file_value
+            if parm == 'wmo':
+                adjusted_value = cache_file_value.split('-')
+            else:
+                adjusted_value = int(cache_file_value)
 
         if not adjusted_value:
             # Final check for value = None and not set by cache_file
-            adjusted_value = self._MAX_VALUE
+            if not isinstance(value, (list, tuple)):
+                adjusted_value = self._MAX_VALUE
 
         return adjusted_value
 
@@ -446,15 +459,17 @@ class ArgoData(object):
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
         will be returned, this is useful for testing or for getting just 
-        the most recent data from the float. Set append_df to False if
-        calling simply to load cache_file (reduces memory requirements).
+        the most recent profiles from the float. To load only surface data
+        set a max_pressure value. Set append_df to False if calling simply 
+        to load cache_file (reduces memory requirements).
         '''
-        max_profiles = int(self._validate_cache_file_parm('profiles', max_profiles))
-        max_pressure = int(self._validate_cache_file_parm('pressure', max_pressure))
+        max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
+        max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
+        max_wmo_list = self._validate_cache_file_parm('wmo', wmo_list)
 
         float_df = self._blank_df
-        for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
-            float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
+        for f, (wmo, dac_url) in enumerate(self.get_dac_urls(max_wmo_list).iteritems()):
+            float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(max_wmo_list))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
             for i, url in enumerate(opendap_urls):
                 if i >= max_profiles:
