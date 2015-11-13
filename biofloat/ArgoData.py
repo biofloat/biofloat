@@ -418,7 +418,7 @@ class ArgoData(object):
         return adjusted_value
 
     def _validate_oxygen(self, df, url):
-        '''Return empty DataFrame if no valid oxygen otherwise return df.
+        '''Return blank DataFrame if no valid oxygen otherwise return df.
         '''
         if df['DOXY_ADJUSTED'].dropna().empty:
             self.logger.warn('Oxygen is all NaNs in %s', url)
@@ -467,7 +467,7 @@ class ArgoData(object):
         max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
         max_wmo_list = self._validate_cache_file_parm('wmo', wmo_list)
 
-        float_df = self._blank_df
+        float_df = pd.DataFrame()
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(max_wmo_list).iteritems()):
             float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(max_wmo_list))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
@@ -486,7 +486,7 @@ class ArgoData(object):
                                             max_pressure, float_msg, max_profiles)
 
                 self.logger.debug(df.head())
-                if append_df and df.dropna().empty:
+                if append_df and not df.dropna().empty:
                     float_df = float_df.append(df)
 
         return float_df
