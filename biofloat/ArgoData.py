@@ -108,9 +108,10 @@ class ArgoData(object):
             self.cache_file_parms = self._get_cache_file_parms(cache_file)
             self.cache_file = cache_file
         else:
-            # Write to same directory where this module is installed
+            # Write default cache to users home directory 
             self.cache_file = os.path.abspath(os.path.join(
-                              os.path.dirname(__file__), 'biofloat_cache.hdf'))
+                              os.path.expanduser('~'), 
+                              'biofloat_default_cache.hdf'))
 
     def _repack_hdf(self):
         '''Execute the ptrepack command on the cache_file. 

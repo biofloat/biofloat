@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import sys
-from os.path import join, dirname, abspath
+from os.path import join, dirname, abspath, expanduser
 parent_dir = join(dirname(__file__), "../")
 sys.path.insert(0, parent_dir)
 
@@ -50,7 +50,7 @@ class ArgoDataLoader(object):
         if self.args.cache_dir:
             cache_dir = self.args.cache_dir
         else:
-            cache_dir = abspath(join(dirname(__file__), "../biofloat"))
+            cache_dir = expanduser('~')
     
         cache_file = abspath(join(cache_dir, cache_file))
 
