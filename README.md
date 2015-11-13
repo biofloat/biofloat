@@ -1,7 +1,7 @@
 biofloat
 --------
 
-[![Build Status](https://travis-ci.org/MBARIMike/biofloat.svg?branch=master)](https://travis-ci.org/MBARIMike/biofloat)
+[![Build Status](https://travis-ci.org/biofloat/biofloat.svg?branch=master)](https://travis-ci.org/biofloat/biofloat)
 [![Coverage Status](https://coveralls.io/repos/biofloat/biofloat/badge.svg?branch=master&service=github)](https://coveralls.io/github/biofloat/biofloat?branch=master)
 [![Code Health](https://landscape.io/github/biofloat/biofloat/master/landscape.svg?style=flat)](https://landscape.io/github/biofloat/biofloat/master)
 
