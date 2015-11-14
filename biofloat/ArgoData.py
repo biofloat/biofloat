@@ -218,7 +218,10 @@ class ArgoData(object):
             if v not in ds.keys():
                 raise RequiredVariableNotPresent('{} not in {}'.format(v, url))
 
-        pressures, pres_indices = self._get_pressures(ds, max_pressure)
+        try:
+            pressures, pres_indices = self._get_pressures(ds, max_pressure)
+        except pydap.exceptions.ServerError as e:
+            self.logger.error(e)
 
         # Make a DataFrame with a hierarchical index for better efficiency
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
