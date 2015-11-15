@@ -1,7 +1,12 @@
 Jupyter Notebooks for biofloat 
 ------------------------------
 
-To execute these Notebooks follow [these instructions to install biofloat](../README.md) and clone this repository.
+To execute the code in these Notebooks follow [these instructions to install biofloat](../README.md).
+The biofloat package must be in your Python search path.  If you installed with `pip install biofloat`
+it will be in your path.  If you are operating from a clone of the repository you should set your
+PYTHONPATH environment variable to that directory, e.g.:
+
+    export PYTHONPATH=~/dev/biofloatgit
 
 Change to this directory on your computer and execute this at the command line:
 
