@@ -82,6 +82,11 @@ class DataTest(unittest.TestCase):
         # and http://www.oceanographers.net/forums/showthread.php?1486-ask-how-to-conversion-ml-L-to-%B5mol-kg
         self.assertAlmostEqual(utils.convert_to_mll(308, 35, 5, 0), 7.1, places=1)
         self.assertAlmostEqual(utils.convert_to_mll(225.6, 36.5, 1, 0), 5.2, places=1)
+
+    def test_get_bio_profile_index(self):
+        df = self.ad.get_bio_profile_index()
+        self.assertNotEqual(len(df), 0)
+
         
 if __name__ == '__main__':
     unittest.main()

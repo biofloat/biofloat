@@ -42,6 +42,7 @@ class ArgoData(object):
     # Literals for groups stored in local HDF file cache
     _STATUS = 'status'
     _GLOBAL_META = 'global_meta'
+    _BIO_PROFILE_INDEX = 'bio_global_index'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
 
     # Names and search patterns for cache file naming/parsing
@@ -177,12 +178,12 @@ class ArgoData(object):
         df = pd.read_csv(StringIO(req.text[1:]))
         return df
 
-    def _global_meta_to_df(self):
-        '''Read the data at global_url link and return it as a Pandas DataFrame.
+    def _ftp_csv_to_df(self, url, date_columns=[]):
+        '''Read the data at url link and return it as a Pandas DataFrame.
         '''
-        self.logger.info('Reading data from %s', self.global_url)
-        with closing(urllib2.urlopen(self.global_url)) as r:
-            df = pd.read_csv(r, comment='#')
+        self.logger.info('Reading data from %s', url)
+        with closing(urllib2.urlopen(url)) as r:
+            df = pd.read_csv(r, comment='#', parse_dates=date_columns)
 
         return df
 
@@ -286,31 +287,48 @@ class ArgoData(object):
 
         return odf['WMO'].tolist()
 
-    def get_dac_urls(self, desired_float_numbers):
+    def get_dac_urls(self, wmo_list):
         '''Return dictionary of Data Assembly Centers keyed by wmo number.
 
         Args:
-            desired_float_numbers (list[str]): List of strings of float numbers
+            wmo_list (list[str]): List of strings of float numbers
         '''
         try:
             df = self._get_df(self._GLOBAL_META)
         except KeyError:
             self.logger.debug('Could not read global_meta, putting it into cache.')
-            self._put_df(self._global_meta_to_df(), self._GLOBAL_META)
+            self._put_df(self._ftp_csv_to_df(self.global_url, 
+                              date_columns=['date_update']), self._GLOBAL_META)
             df = self._get_df(self._GLOBAL_META)
 
         dac_urls = {}
         for _, row in df.loc[:,['file']].iterrows():
-            floatNum = row['file'].split('/')[1]
-            if floatNum in desired_float_numbers:
+            wmo = row['file'].split('/')[1]
+            if wmo in wmo_list:
                 url = self.thredds_url
                 url += '/'.join(row['file'].split('/')[:2])
                 url += "/profiles/catalog.xml"
-                dac_urls[floatNum] = url
+                dac_urls[wmo] = url
 
         self.logger.debug('Found %s dac_urls', len(dac_urls))
 
         return dac_urls
+
+    def get_bio_profile_index(self,
+            url='ftp://ftp.ifremer.fr/ifremer/argo/argo_bio-profile_index.txt'):
+        '''Return Pandas DataFrame of data at url
+        '''
+        try:
+            df = self._get_df(self._BIO_PROFILE_INDEX)
+        except KeyError:
+            self.logger.debug('Adding %s to cache', self._BIO_PROFILE_INDEX)
+            self._put_df(self._ftp_csv_to_df(url, date_columns=['date', 'date_update']),
+                         self._BIO_PROFILE_INDEX)
+            df = self._get_df(self._BIO_PROFILE_INDEX)
+
+        return df
+
+
 
     def _sort_opendap_urls(self, urls):
         '''Organize list of Argo OpenDAP URLs so that 'D' Delayed Mode or
