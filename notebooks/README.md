@@ -8,15 +8,15 @@ it will be in your path and you are all set and will be able to execute these No
 If you wish to use the biofloat software in a clone of the repository you should set your 
 PYTHONPATH environment variable to that directory.
 
-#####  For example, on Unix:
+######  For example, on Unix:
 
     export PYTHONPATH=~/dev/biofloatgit
 
-#####  For example, on Windows:
+######  For example, on Windows:
 
-    set PYTHONPATH=%HOMEDRIVE%%HOMEPATH%\\Documents\\GitHub\\biofloat;
+    set PYTHONPATH=%HOMEDRIVE%%HOMEPATH%\Documents\GitHub\biofloat;
 
-Change to this directory on your computer and execute this at the command line:
+##### Change to this directory on your computer and execute this at the command line:
 
     ipython notebook
 
