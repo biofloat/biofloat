@@ -42,6 +42,7 @@ class ArgoData(object):
     # Literals for groups stored in local HDF file cache
     _STATUS = 'status'
     _GLOBAL_META = 'global_meta'
+    _BIO_PROFILE_INDEX = 'bio_global_index'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
 
     # Names and search patterns for cache file naming/parsing
@@ -177,12 +178,12 @@ class ArgoData(object):
         df = pd.read_csv(StringIO(req.text[1:]))
         return df
 
-    def _global_meta_to_df(self):
-        '''Read the data at global_url link and return it as a Pandas DataFrame.
+    def _ftp_csv_to_df(self, url, date_columns=[]):
+        '''Read the data at url link and return it as a Pandas DataFrame.
         '''
-        self.logger.info('Reading data from %s', self.global_url)
-        with closing(urllib2.urlopen(self.global_url)) as r:
-            df = pd.read_csv(r, comment='#')
+        self.logger.info('Reading data from %s', url)
+        with closing(urllib2.urlopen(url)) as r:
+            df = pd.read_csv(r, comment='#', parse_dates=date_columns)
 
         return df
 
@@ -218,7 +219,10 @@ class ArgoData(object):
             if v not in ds.keys():
                 raise RequiredVariableNotPresent('{} not in {}'.format(v, url))
 
-        pressures, pres_indices = self._get_pressures(ds, max_pressure)
+        try:
+            pressures, pres_indices = self._get_pressures(ds, max_pressure)
+        except pydap.exceptions.ServerError as e:
+            self.logger.error(e)
 
         # Make a DataFrame with a hierarchical index for better efficiency
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
@@ -283,31 +287,48 @@ class ArgoData(object):
 
         return odf['WMO'].tolist()
 
-    def get_dac_urls(self, desired_float_numbers):
+    def get_dac_urls(self, wmo_list):
         '''Return dictionary of Data Assembly Centers keyed by wmo number.
 
         Args:
-            desired_float_numbers (list[str]): List of strings of float numbers
+            wmo_list (list[str]): List of strings of float numbers
         '''
         try:
             df = self._get_df(self._GLOBAL_META)
         except KeyError:
             self.logger.debug('Could not read global_meta, putting it into cache.')
-            self._put_df(self._global_meta_to_df(), self._GLOBAL_META)
+            self._put_df(self._ftp_csv_to_df(self.global_url, 
+                              date_columns=['date_update']), self._GLOBAL_META)
             df = self._get_df(self._GLOBAL_META)
 
         dac_urls = {}
         for _, row in df.loc[:,['file']].iterrows():
-            floatNum = row['file'].split('/')[1]
-            if floatNum in desired_float_numbers:
+            wmo = row['file'].split('/')[1]
+            if wmo in wmo_list:
                 url = self.thredds_url
                 url += '/'.join(row['file'].split('/')[:2])
                 url += "/profiles/catalog.xml"
-                dac_urls[floatNum] = url
+                dac_urls[wmo] = url
 
         self.logger.debug('Found %s dac_urls', len(dac_urls))
 
         return dac_urls
+
+    def get_bio_profile_index(self,
+            url='ftp://ftp.ifremer.fr/ifremer/argo/argo_bio-profile_index.txt'):
+        '''Return Pandas DataFrame of data at url
+        '''
+        try:
+            df = self._get_df(self._BIO_PROFILE_INDEX)
+        except KeyError:
+            self.logger.debug('Adding %s to cache', self._BIO_PROFILE_INDEX)
+            self._put_df(self._ftp_csv_to_df(url, date_columns=['date', 'date_update']),
+                         self._BIO_PROFILE_INDEX)
+            df = self._get_df(self._BIO_PROFILE_INDEX)
+
+        return df
+
+
 
     def _sort_opendap_urls(self, urls):
         '''Organize list of Argo OpenDAP URLs so that 'D' Delayed Mode or
@@ -381,31 +402,44 @@ class ArgoData(object):
         try:
             cache_file_value = self.cache_file_parms[parm]
         except KeyError:
-            # Return a ridiculously large integer to force reading all data
-            adjusted_value =  self._MAX_VALUE
+            if isinstance(value, int):
+                # Return a ridiculously large integer to force reading all data
+                adjusted_value =  self._MAX_VALUE
         except AttributeError:
             # No cache_file sepcified
             pass
 
         if value and cache_file_value:
-            if value > cache_file_value:
-                self.logger.warn("Requested %s %s exceeds cache file's parameter: %s",
-                                  parm, value, cache_file_value)
-                self.logger.info("Setting %s to %s", parm, cache_file_value)
-                adjusted_value = cache_file_value
+            if isinstance(value, int):
+                if value > cache_file_value:
+                    self.logger.warn("Requested %s %s exceeds cache file's parameter: %s",
+                                      parm, value, cache_file_value)
+                    self.logger.info("Setting %s to %s", parm, cache_file_value)
+                    adjusted_value = int(cache_file_value)
+            else:
+                floats_not_in_file = set(value) ^ set(cache_file_value.split('-'))
+                if floats_not_in_file:
+                    self.logger.warn("Requested item(s) %s %s not in fixed cache file: %s",
+                                      parm, floats_not_in_file, cache_file_value)
+                    adjusted_value = cache_file_value.split('-')
+
         elif not value and cache_file_value:
             self.logger.info("Using fixed cache file's %s value of %s", parm, 
                                                             cache_file_value)
-            adjusted_value = cache_file_value
+            if parm == 'wmo':
+                adjusted_value = cache_file_value.split('-')
+            else:
+                adjusted_value = int(cache_file_value)
 
         if not adjusted_value:
             # Final check for value = None and not set by cache_file
-            adjusted_value = self._MAX_VALUE
+            if not isinstance(value, (list, tuple)):
+                adjusted_value = self._MAX_VALUE
 
         return adjusted_value
 
     def _validate_oxygen(self, df, url):
-        '''Return empty DataFrame if no valid oxygen otherwise return df.
+        '''Return blank DataFrame if no valid oxygen otherwise return df.
         '''
         if df['DOXY_ADJUSTED'].dropna().empty:
             self.logger.warn('Oxygen is all NaNs in %s', url)
@@ -446,15 +480,17 @@ class ArgoData(object):
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
         will be returned, this is useful for testing or for getting just 
-        the most recent data from the float. Set append_df to False if
-        calling simply to load cache_file (reduces memory requirements).
+        the most recent profiles from the float. To load only surface data
+        set a max_pressure value. Set append_df to False if calling simply 
+        to load cache_file (reduces memory requirements).
         '''
-        max_profiles = int(self._validate_cache_file_parm('profiles', max_profiles))
-        max_pressure = int(self._validate_cache_file_parm('pressure', max_pressure))
+        max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
+        max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
+        max_wmo_list = self._validate_cache_file_parm('wmo', wmo_list)
 
-        float_df = self._blank_df
-        for f, (wmo, dac_url) in enumerate(self.get_dac_urls(wmo_list).iteritems()):
-            float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(wmo_list))
+        float_df = pd.DataFrame()
+        for f, (wmo, dac_url) in enumerate(self.get_dac_urls(max_wmo_list).iteritems()):
+            float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(max_wmo_list))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
             for i, url in enumerate(opendap_urls):
                 if i >= max_profiles:
@@ -471,7 +507,7 @@ class ArgoData(object):
                                             max_pressure, float_msg, max_profiles)
 
                 self.logger.debug(df.head())
-                if append_df and df.dropna().empty:
+                if append_df and not df.dropna().empty:
                     float_df = float_df.append(df)
 
         return float_df
