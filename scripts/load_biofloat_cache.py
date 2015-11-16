@@ -66,6 +66,9 @@ class ArgoDataLoader(object):
                                          max_pressure=self.args.pressure,
                                          append_df=False)
 
+        # After loading add lookup information to the cache file
+        df = ad.get_cache_file_oxy_count_df(max_profiles=self.args.profiles)
+        print(('{} floats appear to have valid oxygen data').format(len(df)))
         print(('Finished loading cache file {}').format(cache_file))
 
     def process_command_line(self):
