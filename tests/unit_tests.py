@@ -11,9 +11,10 @@ from biofloat import utils
 
 class DataTest(unittest.TestCase):
     def setUp(self):
-        self.ad = ArgoData(verbosity=2)
+        self.ad = ArgoData(verbosity=1)
         self.good_oga_floats = ['1900650']
         self.bad_oga_floats = ['6901464']
+        self._build_default_cache()
 
     def test_get_biofloats(self):
         self.oga_floats = self.ad.get_oxy_floats_from_status()
@@ -36,7 +37,7 @@ class DataTest(unittest.TestCase):
                 self.profile_url, 11000)
         self.assertNotEqual(len(d), 0)
 
-    def test_read_profile_data(self):
+    def _build_default_cache(self):
         # Methods need to be called in order
         self._get_dac_urls()
         self._get_profile_opendap_urls()
@@ -64,7 +65,7 @@ class DataTest(unittest.TestCase):
         cache_file = os.path.abspath(
                      os.path.join(parent_dir, 'biofloat', adl.short_cache_file()))
 
-        ad = ArgoData(verbosity=2, cache_file=cache_file)
+        ad = ArgoData(verbosity=1, cache_file=cache_file)
         wmo_list = ad.get_oxy_floats_from_status(age_gte=age)
         # Force limiting to what's in cache_file name: 1
         ad.get_float_dataframe(wmo_list, max_profiles=2)
@@ -87,6 +88,22 @@ class DataTest(unittest.TestCase):
         df = self.ad.get_bio_profile_index()
         self.assertNotEqual(len(df), 0)
 
-        
+    def test_get_cache_file_all_wmo_list(self):
+        df = self.ad.get_float_dataframe(self.good_oga_floats, max_profiles=2)
+        self.assertNotEqual(len(df), 0)
+        df = self.ad.get_cache_file_all_wmo_list(flush=True)
+        self.assertNotEqual(len(df), 0)
+        df = self.ad.get_cache_file_all_wmo_list()
+        self.assertNotEqual(len(df), 0)
+
+    def test_get_cache_file_oxy_wmo_list(self):
+        df = self.ad.get_float_dataframe(self.good_oga_floats, max_profiles=2)
+        self.assertNotEqual(len(df), 0)
+        df = self.ad.get_cache_file_oxy_wmo_list(max_profiles=2, flush=True)
+        self.assertNotEqual(len(df), 0)
+        df = self.ad.get_cache_file_oxy_wmo_list(max_profiles=2)
+        self.assertNotEqual(len(df), 0)
+
+
 if __name__ == '__main__':
     unittest.main()
