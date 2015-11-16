@@ -44,7 +44,7 @@ class ArgoData(object):
     _GLOBAL_META = 'global_meta'
     _BIO_PROFILE_INDEX = 'bio_global_index'
     _ALL_WMO_LIST = 'all_wmo_list'
-    _OXY_WMO_LIST = 'oxy_wmo_list'
+    _OXY_COUNT_DF = 'oxy_count_df'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
 
     # Names and search patterns for cache file naming/parsing
@@ -506,46 +506,58 @@ class ArgoData(object):
         try:
             with pd.HDFStore(self.cache_file) as s:
                 wmo_series = s[self._ALL_WMO_LIST]
-                self.logger.debug('Read %s from cache', self._ALL_WMO_LIST)
+                self.logger.info('Read %s from cache', self._ALL_WMO_LIST)
         except (KeyError, TypeError):
             with pd.HDFStore(self.cache_file) as f:
                 wmo_set = {g.split('/')[1].split('_')[1] 
                               for g in f.keys() if g.startswith('/WMO')}
 
             wmo_series = pd.Series(list(sorted(wmo_set)))
-            self.logger.debug('Putting %s into cache', self._ALL_WMO_LIST)
+            self.logger.info('Putting %s into cache', self._ALL_WMO_LIST)
             with pd.HDFStore(self.cache_file) as s:
                 s.put(self._ALL_WMO_LIST, wmo_series, format='fixed')
 
         return wmo_series.tolist()
 
-    def get_cache_file_oxy_wmo_list(self, max_profiles=None, flush=False):
-        '''Return wmo numbers of all the floats containing oxygen data in the cache file.
-        Limit loading additional profiles by setting max_profiles.
+    def get_cache_file_oxy_count_df(self, max_profiles=None, flush=False):
+        '''Return DataFrame of profile and measurment counts for each float
+        that contains oxygen data in the cache file.  Limit loading additional 
+        profiles by setting max_profiles.
         '''
-        oxy_wmo_list = []
+        oxy_count_df = pd.DataFrame()
         if flush:
             try:
                 with pd.HDFStore(self.cache_file) as s:
-                    s.remove(self._OXY_WMO_LIST)
+                    s.remove(self._OXY_COUNT_DF)
             except KeyError:
                 pass
         try:
             with pd.HDFStore(self.cache_file) as s:
-                oxy_wmo_list = s[self._OXY_WMO_LIST].tolist()
-                self.logger.debug('Read %s from cache', self._OXY_WMO_LIST)
+                oxy_count_df = s[self._OXY_COUNT_DF]
+                self.logger.info('Read %s from cache', self._OXY_COUNT_DF)
         except KeyError:
+            oxy_hash = {}
             for wmo in self.get_cache_file_all_wmo_list(flush=flush):
                 df = self.get_float_dataframe([wmo], max_profiles)
                 try:
                     if not df['DOXY_ADJUSTED'].dropna().empty:
-                        oxy_wmo_list.append(wmo)
+                        odf = df.dropna().xs(wmo, level='wmo')
+                        oxy_hash[wmo] = (
+                                len(odf.index.get_level_values('time').unique()),
+                                len(odf))
                 except KeyError:
                     pass
 
-            self.logger.debug('Putting %s into cache', self._OXY_WMO_LIST)
-            with pd.HDFStore(self.cache_file) as s:
-                s.put(self._OXY_WMO_LIST, pd.Series(oxy_wmo_list), format='fixed')
+            num_profiles = pd.Series([v[0] for v in oxy_hash.values()])
+            num_measurements = pd.Series([v[1] for v in oxy_hash.values()])
+            oxy_count_df = pd.DataFrame(dict(wmo = pd.Series(oxy_hash.keys()), 
+                                    num_profiles = num_profiles, 
+                                    num_measurements = num_measurements))
 
-        return oxy_wmo_list
+            self.logger.info('Putting %s into cache', self._OXY_COUNT_DF)
+            with pd.HDFStore(self.cache_file) as s:
+                s.put(self._OXY_COUNT_DF, oxy_count_df, format='fixed')
+            self.logger.info('Putting %s into cache', self._OXY_COUNT_DF)
+
+        return oxy_count_df
 
