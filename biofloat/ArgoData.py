@@ -43,6 +43,8 @@ class ArgoData(object):
     _STATUS = 'status'
     _GLOBAL_META = 'global_meta'
     _BIO_PROFILE_INDEX = 'bio_global_index'
+    _ALL_WMO_LIST = 'all_wmo_list'
+    _OXY_WMO_LIST = 'oxy_wmo_list'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
 
     # Names and search patterns for cache file naming/parsing
@@ -113,25 +115,6 @@ class ArgoData(object):
             self.cache_file = os.path.abspath(os.path.join(
                               os.path.expanduser('~'), 
                               'biofloat_default_cache.hdf'))
-
-    def _repack_hdf(self):
-        '''Execute the ptrepack command on the cache_file. 
-        '''
-        # For some reason the HDF file grows unreasonable large with empty
-        # DataFrames used as placeholders for keys in the file.  These
-        # commands compress the file, saving a lot of disk space.  This
-        # issue has been posted on stackoverflow: http://bit.ly/1MLeHvM.  
-        # After using self._blank_df, HDF files compress by a factor of 
-        # about 4 with this ptrepack command.  Users may want to do that 
-        # if disk usage is a concern and speed of reading is not.
-        f = 'ptrepack --chunkshape=auto --propindexes --complevel=9 --complib=blosc {} {}'
-        tmp_file = '{}.tmp'.format(self.cache_file)
-        self.logger.debug('Running ptrepack on %s', self.cache_file)
-        ret = os.system(f.format(self.cache_file, tmp_file))
-        self.logger.debug('return code = %s', ret)
-        self.logger.debug('Moving tmp file back to original')
-        ret = move(tmp_file, self.cache_file)
-        self.logger.debug('return code = %s', ret)
 
     def _put_df(self, df, name, metadata=None):
         '''Save Pandas DataFrame to local HDF file with optional metadata dict.
@@ -328,8 +311,6 @@ class ArgoData(object):
 
         return df
 
-
-
     def _sort_opendap_urls(self, urls):
         '''Organize list of Argo OpenDAP URLs so that 'D' Delayed Mode or
         urls that contain 'D' appear before 'R' Realtime ones.
@@ -511,4 +492,60 @@ class ArgoData(object):
                     float_df = float_df.append(df)
 
         return float_df
+
+    def get_cache_file_all_wmo_list(self, flush=False):
+        '''Return wmo numbers of all the floats in the cache file
+        '''
+        wmo_series = pd.Series([])
+        if flush:
+            try:
+                with pd.HDFStore(self.cache_file) as s:
+                    s.remove(self._ALL_WMO_LIST)
+            except KeyError:
+                pass
+        try:
+            with pd.HDFStore(self.cache_file) as s:
+                wmo_series = s[self._ALL_WMO_LIST]
+                self.logger.debug('Read %s from cache', self._ALL_WMO_LIST)
+        except (KeyError, TypeError):
+            with pd.HDFStore(self.cache_file) as f:
+                wmo_set = {g.split('/')[1].split('_')[1] 
+                              for g in f.keys() if g.startswith('/WMO')}
+
+            wmo_series = pd.Series(list(sorted(wmo_set)))
+            self.logger.debug('Putting %s into cache', self._ALL_WMO_LIST)
+            with pd.HDFStore(self.cache_file) as s:
+                s.put(self._ALL_WMO_LIST, wmo_series, format='fixed')
+
+        return wmo_series.tolist()
+
+    def get_cache_file_oxy_wmo_list(self, max_profiles=None, flush=False):
+        '''Return wmo numbers of all the floats containing oxygen data in the cache file.
+        Limit loading additional profiles by setting max_profiles.
+        '''
+        oxy_wmo_list = []
+        if flush:
+            try:
+                with pd.HDFStore(self.cache_file) as s:
+                    s.remove(self._OXY_WMO_LIST)
+            except KeyError:
+                pass
+        try:
+            with pd.HDFStore(self.cache_file) as s:
+                oxy_wmo_list = s[self._OXY_WMO_LIST].tolist()
+                self.logger.debug('Read %s from cache', self._OXY_WMO_LIST)
+        except KeyError:
+            for wmo in self.get_cache_file_all_wmo_list(flush=flush):
+                df = self.get_float_dataframe([wmo], max_profiles)
+                try:
+                    if not df['DOXY_ADJUSTED'].dropna().empty:
+                        oxy_wmo_list.append(wmo)
+                except KeyError:
+                    pass
+
+            self.logger.debug('Putting %s into cache', self._OXY_WMO_LIST)
+            with pd.HDFStore(self.cache_file) as s:
+                s.put(self._OXY_WMO_LIST, pd.Series(oxy_wmo_list), format='fixed')
+
+        return oxy_wmo_list
 
