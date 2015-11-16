@@ -16,7 +16,7 @@ PYTHONPATH environment variable to that directory.
 
     set PYTHONPATH=%HOMEDRIVE%%HOMEPATH%\Documents\GitHub\biofloat;
 
-##### Change to this directory on your computer and execute this at the command line:
+##### Change to this directory on your computer and execute this at the Anaconda, Canopy, or Unix prompt:
 
     ipython notebook
 
