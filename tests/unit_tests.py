@@ -99,9 +99,9 @@ class DataTest(unittest.TestCase):
     def test_get_cache_file_oxy_wmo_list(self):
         df = self.ad.get_float_dataframe(self.good_oga_floats, max_profiles=2)
         self.assertNotEqual(len(df), 0)
-        df = self.ad.get_cache_file_oxy_wmo_list(max_profiles=2, flush=True)
+        df = self.ad.get_cache_file_oxy_count_df(max_profiles=2, flush=True)
         self.assertNotEqual(len(df), 0)
-        df = self.ad.get_cache_file_oxy_wmo_list(max_profiles=2)
+        df = self.ad.get_cache_file_oxy_count_df(max_profiles=2)
         self.assertNotEqual(len(df), 0)
 
 
