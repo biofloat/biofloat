@@ -33,8 +33,9 @@ class DataTest(unittest.TestCase):
             break
 
     def _profile_to_dataframe(self):
+        key, code = self.ad._float_profile_key(self.profile_url)
         d = self.ad._profile_to_dataframe(self.good_oga_floats[0], 
-                self.profile_url, 11000)
+                self.profile_url, key, 11000, ['DOXY_ADJUSTED'])
         self.assertNotEqual(len(d), 0)
 
     def _build_default_cache(self):
