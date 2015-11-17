@@ -10,6 +10,7 @@ import xray
 
 from bs4 import BeautifulSoup
 from contextlib import closing
+from datetime import datetime
 from requests.exceptions import ConnectionError
 from shutil import move
 
@@ -141,13 +142,24 @@ class ArgoData(object):
         try:
             self.logger.debug('Getting "%s" from %s', name, self.cache_file)
             df = store[name]
+            try:
+                metadata = store.get_storer(name).attrs.metadata
+            except AttributeError:
+                metadata = None
         except (IOError, KeyError):
             raise
         finally:
             self.logger.debug('store.close()')
             store.close()
 
-        return df
+        return df, metadata
+
+    def _remove_df(self, name):
+        '''Remove name from cache file
+        '''
+        with pd.HDFStore(self.cache_file) as store:
+            self.logger.debug('Removing "%s" from %s', name, self.cache_file)
+            store.remove(name)
 
     def _status_to_df(self):
         '''Read the data at status_url link and return it as a Pandas DataFrame.
@@ -198,10 +210,10 @@ class ArgoData(object):
         # Make a DataFrame with a hierarchical index for better efficiency
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
         tuples = [(wmo, ds['JULD'].values[nprof], ds['LONGITUDE'].values[nprof], 
-                        ds['LATITUDE'].values[nprof], round(pres, 1), profile)
+                        ds['LATITUDE'].values[nprof], profile, round(pres, 2))
                                         for pres in pressures]
         indices = pd.MultiIndex.from_tuples(tuples, 
-                names=['wmo', 'time', 'lon', 'lat', 'pressure', 'profile'])
+                names=['wmo', 'time', 'lon', 'lat', 'profile', 'pressure'])
 
         return indices, pres_indices
 
@@ -244,17 +256,34 @@ class ArgoData(object):
 
         profile = int(key.split('P')[1])
 
-        df = self._build_profile_dataframe(wmo, ds, max_pressure, profile, nprof=0)
+        df = self._build_profile_dataframe(wmo, ds, max_pressure, 
+                                           profile, nprof=0)
 
         # Check for required bio variables - should only the low resolution 
         # data be returned or should the high resolution T/S data be 
         # concatenated with the lower vertical resolution variables?
         for var in bio_list:
             if df[var].dropna().empty:
-                self.logger.warn('%s: N_PROF [0] empty, trying [1]', var)
-                df = self._build_profile_dataframe(wmo, ds, max_pressure, profile, nprof=1)
+                self.logger.warn('%s: N_PROF [0] empty, using [1]', var)
+                df = self._build_profile_dataframe(wmo, ds, max_pressure, 
+                                                   profile, nprof=1)
 
         return df
+
+    def _get_update_datetime(self, url):
+        '''Return python datetime of DATE_UPDATE variable from NetCDF file at url
+        '''
+        dt = None
+        try:
+            self.logger.debug('Opening %s', url)
+            ds = xray.open_dataset(url)
+        except pydap.exceptions.ServerError:
+            self.logger.error('ServerError opening %s', url)
+            return dt
+
+        dt = datetime.strptime(ds['DATE_UPDATE'].values, '%Y%m%d%H%M%S')
+
+        return dt
 
     def _float_profile_key(self, url):
         '''Return last part of url as key that serves as a PyTables/HDF 
@@ -281,11 +310,11 @@ class ArgoData(object):
             age_gte (int): Restrict to floats with data >= age, defaults to 340
         '''
         try:
-            df = self._get_df(self._STATUS)
+            df, _ = self._get_df(self._STATUS)
         except (IOError, KeyError):
             self.logger.debug('Could not read status from cache, loading it.')
             self._put_df(self._status_to_df(), self._STATUS)
-            df = self._get_df(self._STATUS)
+            df, _ = self._get_df(self._STATUS)
 
         odf = df.query('(OXYGEN == 1) & (GREYLIST == 0) & (AGE != 0) & '
                        '(AGE >= {:d})'.format(age_gte))
@@ -299,12 +328,12 @@ class ArgoData(object):
             wmo_list (list[str]): List of strings of float numbers
         '''
         try:
-            df = self._get_df(self._GLOBAL_META)
+            df, _ = self._get_df(self._GLOBAL_META)
         except KeyError:
             self.logger.debug('Could not read global_meta, putting it into cache.')
             self._put_df(self._ftp_csv_to_df(self.global_url, 
                               date_columns=['date_update']), self._GLOBAL_META)
-            df = self._get_df(self._GLOBAL_META)
+            df, _ = self._get_df(self._GLOBAL_META)
 
         dac_urls = {}
         for _, row in df.loc[:,['file']].iterrows():
@@ -324,12 +353,12 @@ class ArgoData(object):
         '''Return Pandas DataFrame of data at url
         '''
         try:
-            df = self._get_df(self._BIO_PROFILE_INDEX)
+            df, _ = self._get_df(self._BIO_PROFILE_INDEX)
         except KeyError:
             self.logger.debug('Adding %s to cache', self._BIO_PROFILE_INDEX)
             self._put_df(self._ftp_csv_to_df(url, date_columns=['date', 'date_update']),
                          self._BIO_PROFILE_INDEX)
-            df = self._get_df(self._BIO_PROFILE_INDEX)
+            df, _ = self._get_df(self._BIO_PROFILE_INDEX)
 
         return df
 
@@ -473,19 +502,21 @@ class ArgoData(object):
             self.logger.warn(str(e))
             df = self._blank_df
 
-        self._put_df(df, key, dict(url=url))
+        self._put_df(df, key, dict(url=url, dateloaded=datetime.utcnow()))
 
         return df
 
     def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
-                                  append_df=True, bio_list=('DOXY_ADJUSTED',)):
+                                  append_df=True, bio_list=('DOXY_ADJUSTED',),
+                                  check_for_updated=False):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
         will be returned, this is useful for testing or for getting just 
         the most recent profiles from the float. To load only surface data
         set a max_pressure value. Set append_df to False if calling simply 
-        to load cache_file (reduces memory requirements).
+        to load cache_file (reduces memory requirements).  Set check_for_updated
+        to True to reload into the cache updated delayed mode data.
         '''
         max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
         max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
@@ -504,7 +535,17 @@ class ArgoData(object):
                 except AttributeError:
                     continue
                 try:
-                    df = self._get_df(key)
+                    df, m = self._get_df(key)
+                    if 'D' in code.upper() and check_for_updated:
+                        DATE_UPDATED = self._get_update_datetime(url)
+                        if DATE_UPDATED:
+                            if m['dateloaded'] < DATE_UPDATED:
+                                self.logger.info(
+                                        'Replacing %s as dateloaded time of %s'
+                                        ' is before DATE_UPDATED time of %s',
+                                        key, m['dateloaded'], DATE_UPDATED)
+                                self._remove_df(key)
+                                raise KeyError
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, code,
                                             max_pressure, float_msg, max_profiles,
