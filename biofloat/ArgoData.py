@@ -44,7 +44,7 @@ class ArgoData(object):
     _GLOBAL_META = 'global_meta'
     _BIO_PROFILE_INDEX = 'bio_global_index'
     _ALL_WMO_LIST = 'all_wmo_list'
-    _OXY_WMO_LIST = 'oxy_wmo_list'
+    _OXY_COUNT_DF = 'oxy_count_df'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
 
     # Names and search patterns for cache file naming/parsing
@@ -170,12 +170,12 @@ class ArgoData(object):
 
         return df
 
-    def _get_pressures(self, ds, max_pressure):
+    def _get_pressures(self, ds, max_pressure, nprof=0):
         '''From xray ds return tuple of pressures list and pres_indices list.
         '''
         pressures = []
         pres_indices = []
-        for i, p in enumerate(ds['PRES_ADJUSTED'].values[0]):
+        for i, p in enumerate(ds['PRES_ADJUSTED'].values[nprof]):
             if p >= max_pressure:
                 break
             pressures.append(p)
@@ -186,10 +186,50 @@ class ArgoData(object):
 
         return pressures, pres_indices
 
-    def _profile_to_dataframe(self, wmo, url, max_pressure):
-        '''Return a Pandas DataFrame of profiling float data from data at url.
+    def _multi_indices(self, wmo, ds, max_pressure, profile, nprof=0):
+        '''Return list of tuples that is used for Pandas MultiIndex hireachical 
+        index and indices to pressure variable.
+        '''
+        try:
+            pressures, pres_indices = self._get_pressures(ds, max_pressure, nprof)
+        except pydap.exceptions.ServerError as e:
+            self.logger.error(e)
+
+        # Make a DataFrame with a hierarchical index for better efficiency
+        # Argo data have a N_PROF dimension always of length 1, hence the [0]
+        tuples = [(wmo, ds['JULD'].values[nprof], ds['LONGITUDE'].values[nprof], 
+                        ds['LATITUDE'].values[nprof], round(pres, 1), profile)
+                                        for pres in pressures]
+        indices = pd.MultiIndex.from_tuples(tuples, 
+                names=['wmo', 'time', 'lon', 'lat', 'pressure', 'profile'])
+
+        return indices, pres_indices
+
+    def _build_profile_dataframe(self, wmo, ds, max_pressure, profile, nprof):
+        '''Return DataFrame containing the variables from N_PROF column in
+        url specified by nprof integer (0,1).
         '''
         df = pd.DataFrame()
+        # Add only non-coordinate variables to the DataFrame
+        for v in self.variables ^ self._coordinates:
+            try:
+                indices, pres_indices = self._multi_indices(wmo, ds, 
+                                             max_pressure, profile, nprof)
+                s = pd.Series(ds[v].values[nprof][pres_indices], index=indices)
+                self.logger.debug('Added %s to DataFrame', v)
+                df[v] = s
+            except KeyError:
+                self.logger.warn('%s not in %s', v, url)
+            except pydap.exceptions.ServerError as e:
+                self.logger.error(e)
+
+        return df
+
+    def _profile_to_dataframe(self, wmo, url, key, max_pressure, bio_list):
+        '''Return a Pandas DataFrame of profiling float data from data at url.
+        Examine data at url for variables in bio_list that may be in the lower
+        vertical resolution [1] N_PROF array.
+        '''
         try:
             self.logger.debug('Opening %s', url)
             ds = xray.open_dataset(url)
@@ -202,35 +242,17 @@ class ArgoData(object):
             if v not in ds.keys():
                 raise RequiredVariableNotPresent('{} not in {}'.format(v, url))
 
-        try:
-            pressures, pres_indices = self._get_pressures(ds, max_pressure)
-        except pydap.exceptions.ServerError as e:
-            self.logger.error(e)
+        profile = int(key.split('P')[1])
 
-        # Make a DataFrame with a hierarchical index for better efficiency
-        # Argo data have a N_PROF dimension always of length 1, hence the [0]
-        tuples = [(wmo, ds['JULD'].values[0], ds['LONGITUDE'].values[0], 
-                        ds['LATITUDE'].values[0], round(pres, 1))
-                                        for pres in pressures]
-        if tuples:
-            indices = pd.MultiIndex.from_tuples(tuples, names=['wmo', 'time', 
-                                                        'lon', 'lat', 'pressure'])
-            # Add only non-coordinate variables to the DataFrame
-            for v in self.variables ^ self._coordinates:
-                try:
-                    s = pd.Series(ds[v].values[0][pres_indices], index=indices)
-                    if s.dropna().empty:
-                        self.logger.warn('%s: N_PROF [0] empty, trying [1]', v)
-                        try:
-                            s = pd.Series(ds[v].values[1][pres_indices], index=indices)
-                        except IndexError:
-                            pass
-                    self.logger.debug('Added %s to DataFrame', v)
-                    df[v] = s
-                except KeyError:
-                    self.logger.warn('%s not in %s', v, url)
-                except pydap.exceptions.ServerError as e:
-                    self.logger.error(e)
+        df = self._build_profile_dataframe(wmo, ds, max_pressure, profile, nprof=0)
+
+        # Check for required bio variables - should only the low resolution 
+        # data be returned or should the high resolution T/S data be 
+        # concatenated with the lower vertical resolution variables?
+        for var in bio_list:
+            if df[var].dropna().empty:
+                self.logger.warn('%s: N_PROF [0] empty, trying [1]', var)
+                df = self._build_profile_dataframe(wmo, ds, max_pressure, profile, nprof=1)
 
         return df
 
@@ -429,7 +451,7 @@ class ArgoData(object):
         return df
 
     def _save_profile(self, url, count, opendap_urls, wmo, key, code,
-                            max_pressure, float_msg, max_profiles):
+                      max_pressure, float_msg, max_profiles, bio_list):
         '''Put profile data into the local HDF cache.
         '''
         m_t = '{}, Profile {} of {}, key = {}, code = {}'
@@ -444,7 +466,7 @@ class ArgoData(object):
 
         try:
             self.logger.info(msg)
-            df = self._profile_to_dataframe(wmo, url, max_pressure)
+            df = self._profile_to_dataframe(wmo, url, key, max_pressure, bio_list)
             if not df.dropna().empty and self._oxygen_required:
                 df = self._validate_oxygen(df, url)
         except RequiredVariableNotPresent as e:
@@ -456,7 +478,7 @@ class ArgoData(object):
         return df
 
     def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
-                                  append_df=True):
+                                  append_df=True, bio_list=('DOXY_ADJUSTED',)):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
@@ -485,7 +507,8 @@ class ArgoData(object):
                     df = self._get_df(key)
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, code,
-                                            max_pressure, float_msg, max_profiles)
+                                            max_pressure, float_msg, max_profiles,
+                                            bio_list)
 
                 self.logger.debug(df.head())
                 if append_df and not df.dropna().empty:
@@ -506,46 +529,58 @@ class ArgoData(object):
         try:
             with pd.HDFStore(self.cache_file) as s:
                 wmo_series = s[self._ALL_WMO_LIST]
-                self.logger.debug('Read %s from cache', self._ALL_WMO_LIST)
+                self.logger.info('Read %s from cache', self._ALL_WMO_LIST)
         except (KeyError, TypeError):
             with pd.HDFStore(self.cache_file) as f:
                 wmo_set = {g.split('/')[1].split('_')[1] 
                               for g in f.keys() if g.startswith('/WMO')}
 
             wmo_series = pd.Series(list(sorted(wmo_set)))
-            self.logger.debug('Putting %s into cache', self._ALL_WMO_LIST)
+            self.logger.info('Putting %s into cache', self._ALL_WMO_LIST)
             with pd.HDFStore(self.cache_file) as s:
                 s.put(self._ALL_WMO_LIST, wmo_series, format='fixed')
 
         return wmo_series.tolist()
 
-    def get_cache_file_oxy_wmo_list(self, max_profiles=None, flush=False):
-        '''Return wmo numbers of all the floats containing oxygen data in the cache file.
-        Limit loading additional profiles by setting max_profiles.
+    def get_cache_file_oxy_count_df(self, max_profiles=None, flush=False):
+        '''Return DataFrame of profile and measurment counts for each float
+        that contains oxygen data in the cache file.  Limit loading additional 
+        profiles by setting max_profiles.
         '''
-        oxy_wmo_list = []
+        oxy_count_df = pd.DataFrame()
         if flush:
             try:
                 with pd.HDFStore(self.cache_file) as s:
-                    s.remove(self._OXY_WMO_LIST)
+                    s.remove(self._OXY_COUNT_DF)
             except KeyError:
                 pass
         try:
             with pd.HDFStore(self.cache_file) as s:
-                oxy_wmo_list = s[self._OXY_WMO_LIST].tolist()
-                self.logger.debug('Read %s from cache', self._OXY_WMO_LIST)
+                oxy_count_df = s[self._OXY_COUNT_DF]
+                self.logger.info('Read %s from cache', self._OXY_COUNT_DF)
         except KeyError:
+            oxy_hash = {}
             for wmo in self.get_cache_file_all_wmo_list(flush=flush):
                 df = self.get_float_dataframe([wmo], max_profiles)
                 try:
                     if not df['DOXY_ADJUSTED'].dropna().empty:
-                        oxy_wmo_list.append(wmo)
+                        odf = df.dropna().xs(wmo, level='wmo')
+                        oxy_hash[wmo] = (
+                                len(odf.index.get_level_values('time').unique()),
+                                len(odf))
                 except KeyError:
                     pass
 
-            self.logger.debug('Putting %s into cache', self._OXY_WMO_LIST)
-            with pd.HDFStore(self.cache_file) as s:
-                s.put(self._OXY_WMO_LIST, pd.Series(oxy_wmo_list), format='fixed')
+            num_profiles = pd.Series([v[0] for v in oxy_hash.values()])
+            num_measurements = pd.Series([v[1] for v in oxy_hash.values()])
+            oxy_count_df = pd.DataFrame(dict(wmo = pd.Series(oxy_hash.keys()), 
+                                    num_profiles = num_profiles, 
+                                    num_measurements = num_measurements))
 
-        return oxy_wmo_list
+            self.logger.info('Putting %s into cache', self._OXY_COUNT_DF)
+            with pd.HDFStore(self.cache_file) as s:
+                s.put(self._OXY_COUNT_DF, oxy_count_df, format='fixed')
+            self.logger.info('Putting %s into cache', self._OXY_COUNT_DF)
+
+        return oxy_count_df
 
