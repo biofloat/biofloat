@@ -205,6 +205,8 @@ class ArgoData(object):
         '''Return list of tuples that is used for Pandas MultiIndex hireachical 
         index and indices to pressure variable.
         '''
+        pressures = []
+        pres_indices = []
         try:
             pressures, pres_indices = self._get_pressures(ds, max_pressure, nprof)
         except pydap.exceptions.ServerError as e:
@@ -269,7 +271,7 @@ class ArgoData(object):
         # concatenated with the lower vertical resolution variables?
         for var in self._bio_list:
             if df[var].dropna().empty:
-                self.logger.warn('%s: N_PROF [0] empty, using [1]', var)
+                self.logger.warn('%s: N_PROF [0] empty, trying [1]', var)
                 df = self._build_profile_dataframe(wmo, ds, max_pressure, 
                                                    profile, nprof=1)
 
