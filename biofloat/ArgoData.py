@@ -249,6 +249,7 @@ class ArgoData(object):
         Examine data at url for variables in self._bio_list that may be in 
         the lower vertical resolution [1] N_PROF array.
         '''
+        df = self._blank_df
         try:
             self.logger.debug('Opening %s', url)
             ds = xray.open_dataset(url)
