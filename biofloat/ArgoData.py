@@ -63,7 +63,7 @@ class ArgoData(object):
     # PyTables: Use non-empty minimal df to minimize HDF file size
     _blank_df = pd.DataFrame([pd.np.nan])
 
-    def __init__(self, verbosity=0, cache_file=None, oxygen_required=True,
+    def __init__(self, verbosity=0, cache_file=None, bio_list=('DOXY_ADJUSTED',),
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS',
@@ -74,27 +74,30 @@ class ArgoData(object):
         
         Args:
             verbosity (int): range(4), default=0
-            cache_file (str): Defaults to biofloat_cache.hdf next to module
-            oxygen_required (boolean): Save profile only if oxygen data exist
+            cache_file (str): Defaults to biofloat_default_cache.hdf in users
+                              home directory
+            bio_list (list): List of required bio variables, e.g.:
+                             ['DOXY_ADJUSTED', 'CHLA', 'BBP700', 'CDOM', 'NITRATE']
             status_url (str): Source URL for Argo status data, defaults to
-                http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt
+                              http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt
             global_url (str): Source URL for DAC locations, defaults to
-                ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt
+                              ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt
             thredds_url (str): Base URL for THREDDS Data Server, defaults to
-                http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS
-            variables (list): Variables to extract from NetCDF files
+                               http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS
+            variables (list): Variables to extract from NetCDF files and put
+                              into the Pandas DataFrame
 
-        cache_file:
+            cache_file (str):
 
             There are 3 kinds of cache files:
 
             1. The default file named biofloat_cache.hdf that is automatically
-               placed in the biofloat module directory. It will cache whatever
+               placed in the user's home directory. It will cache whatever
                data is requested via call to get_float_dataframe().
-            2. Specially named cache_files produced by the load_cache.py program
-               in the scripts directory. These files are built with constraints
-               and are fixed. Once built they can be used in a read-only fashion
-               to work on only the data they contain. Calls to get_float_dataframe()
+            2. Specially named cache_files produced by the load_biofloat_cache.py
+               script. These files are built with constraints and are fixed. 
+               Once built they can be used in a read-only fashion to work on 
+               only the data they contain. Calls to get_float_dataframe().
                will not add more data to these "fixed" cache files.
             3. Custom cache file names. These operate just like the default cache
                file, but can be named whatever the user wants. 
@@ -106,7 +109,7 @@ class ArgoData(object):
         self.variables = set(variables)
 
         self.logger.setLevel(self._log_levels[verbosity])
-        self._oxygen_required = oxygen_required
+        self._bio_list = bio_list
 
         if cache_file:
             self.cache_file_parms = self._get_cache_file_parms(cache_file)
@@ -237,10 +240,10 @@ class ArgoData(object):
 
         return df
 
-    def _profile_to_dataframe(self, wmo, url, key, max_pressure, bio_list):
+    def _profile_to_dataframe(self, wmo, url, key, max_pressure):
         '''Return a Pandas DataFrame of profiling float data from data at url.
-        Examine data at url for variables in bio_list that may be in the lower
-        vertical resolution [1] N_PROF array.
+        Examine data at url for variables in self._bio_list that may be in 
+        the lower vertical resolution [1] N_PROF array.
         '''
         try:
             self.logger.debug('Opening %s', url)
@@ -262,7 +265,7 @@ class ArgoData(object):
         # Check for required bio variables - should only the low resolution 
         # data be returned or should the high resolution T/S data be 
         # concatenated with the lower vertical resolution variables?
-        for var in bio_list:
+        for var in self._bio_list:
             if df[var].dropna().empty:
                 self.logger.warn('%s: N_PROF [0] empty, using [1]', var)
                 df = self._build_profile_dataframe(wmo, ds, max_pressure, 
@@ -480,7 +483,7 @@ class ArgoData(object):
         return df
 
     def _save_profile(self, url, count, opendap_urls, wmo, key, code,
-                      max_pressure, float_msg, max_profiles, bio_list):
+                      max_pressure, float_msg, max_profiles):
         '''Put profile data into the local HDF cache.
         '''
         m_t = '{}, Profile {} of {}, key = {}, code = {}'
@@ -495,8 +498,8 @@ class ArgoData(object):
 
         try:
             self.logger.info(msg)
-            df = self._profile_to_dataframe(wmo, url, key, max_pressure, bio_list)
-            if not df.dropna().empty and self._oxygen_required:
+            df = self._profile_to_dataframe(wmo, url, key, max_pressure)
+            if not df.dropna().empty and 'DOXY_ADJUSTED' in self._bio_list:
                 df = self._validate_oxygen(df, url)
         except RequiredVariableNotPresent as e:
             self.logger.warn(str(e))
@@ -507,8 +510,7 @@ class ArgoData(object):
         return df
 
     def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
-                                  append_df=True, bio_list=('DOXY_ADJUSTED',),
-                                  check_for_updated=False):
+                                  append_df=True, check_for_updated=False):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
@@ -548,8 +550,7 @@ class ArgoData(object):
                                 raise KeyError
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, code,
-                                            max_pressure, float_msg, max_profiles,
-                                            bio_list)
+                                            max_pressure, float_msg, max_profiles)
 
                 self.logger.debug(df.head())
                 if append_df and not df.dropna().empty:
