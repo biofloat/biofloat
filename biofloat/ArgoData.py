@@ -209,6 +209,8 @@ class ArgoData(object):
             pressures, pres_indices = self._get_pressures(ds, max_pressure, nprof)
         except pydap.exceptions.ServerError as e:
             self.logger.error(e)
+        except IndexError:
+            self.logger.warn('Profile [%s] does not exist', nprof)
 
         # Make a DataFrame with a hierarchical index for better efficiency
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
