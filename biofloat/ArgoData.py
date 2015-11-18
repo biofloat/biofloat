@@ -237,7 +237,7 @@ class ArgoData(object):
                 s = pd.Series(ds[v].values[nprof][pres_indices], index=indices)
                 self.logger.debug('Added %s to DataFrame', v)
                 df[v] = s
-            except KeyError:
+            except (KeyError, TypeError):
                 self.logger.warn('%s not in %s', v, url)
             except pydap.exceptions.ServerError as e:
                 self.logger.error(e)
