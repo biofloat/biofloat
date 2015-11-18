@@ -224,7 +224,7 @@ class ArgoData(object):
 
         return indices, pres_indices
 
-    def _build_profile_dataframe(self, wmo, ds, max_pressure, profile, nprof):
+    def _build_profile_dataframe(self, wmo, url, ds, max_pressure, profile, nprof):
         '''Return DataFrame containing the variables from N_PROF column in
         url specified by nprof integer (0,1).
         '''
@@ -263,7 +263,7 @@ class ArgoData(object):
 
         profile = int(key.split('P')[1])
 
-        df = self._build_profile_dataframe(wmo, ds, max_pressure, 
+        df = self._build_profile_dataframe(wmo, url, ds, max_pressure, 
                                            profile, nprof=0)
 
         # Check for required bio variables - should only the low resolution 
@@ -272,7 +272,7 @@ class ArgoData(object):
         for var in self._bio_list:
             if df[var].dropna().empty:
                 self.logger.warn('%s: N_PROF [0] empty, trying [1]', var)
-                df = self._build_profile_dataframe(wmo, ds, max_pressure, 
+                df = self._build_profile_dataframe(wmo, url, ds, max_pressure, 
                                                    profile, nprof=1)
 
         return df
