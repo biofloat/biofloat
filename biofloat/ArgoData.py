@@ -256,6 +256,9 @@ class ArgoData(object):
         except pydap.exceptions.ServerError:
             self.logger.error('ServerError opening %s', url)
             return df
+        except Exception as e:
+            self.logger.error('Error opening %s: %s', url, str(e))
+            return df
 
         self.logger.debug('Checking %s for our desired variables', url)
         for v in self.variables:
