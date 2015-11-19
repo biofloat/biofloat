@@ -10,6 +10,7 @@ import xray
 
 from bs4 import BeautifulSoup
 from contextlib import closing
+from datetime import datetime
 from requests.exceptions import ConnectionError
 from shutil import move
 
@@ -62,7 +63,7 @@ class ArgoData(object):
     # PyTables: Use non-empty minimal df to minimize HDF file size
     _blank_df = pd.DataFrame([pd.np.nan])
 
-    def __init__(self, verbosity=0, cache_file=None, oxygen_required=True,
+    def __init__(self, verbosity=0, cache_file=None, bio_list=('DOXY_ADJUSTED',),
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS',
@@ -73,27 +74,30 @@ class ArgoData(object):
         
         Args:
             verbosity (int): range(4), default=0
-            cache_file (str): Defaults to biofloat_cache.hdf next to module
-            oxygen_required (boolean): Save profile only if oxygen data exist
+            cache_file (str): Defaults to biofloat_default_cache.hdf in users
+                              home directory
+            bio_list (list): List of required bio variables, e.g.:
+                             ['DOXY_ADJUSTED', 'CHLA', 'BBP700', 'CDOM', 'NITRATE']
             status_url (str): Source URL for Argo status data, defaults to
-                http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt
+                              http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt
             global_url (str): Source URL for DAC locations, defaults to
-                ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt
+                              ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt
             thredds_url (str): Base URL for THREDDS Data Server, defaults to
-                http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS
-            variables (list): Variables to extract from NetCDF files
+                               http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS
+            variables (list): Variables to extract from NetCDF files and put
+                              into the Pandas DataFrame
 
-        cache_file:
+            cache_file (str):
 
             There are 3 kinds of cache files:
 
             1. The default file named biofloat_cache.hdf that is automatically
-               placed in the biofloat module directory. It will cache whatever
+               placed in the user's home directory. It will cache whatever
                data is requested via call to get_float_dataframe().
-            2. Specially named cache_files produced by the load_cache.py program
-               in the scripts directory. These files are built with constraints
-               and are fixed. Once built they can be used in a read-only fashion
-               to work on only the data they contain. Calls to get_float_dataframe()
+            2. Specially named cache_files produced by the load_biofloat_cache.py
+               script. These files are built with constraints and are fixed. 
+               Once built they can be used in a read-only fashion to work on 
+               only the data they contain. Calls to get_float_dataframe().
                will not add more data to these "fixed" cache files.
             3. Custom cache file names. These operate just like the default cache
                file, but can be named whatever the user wants. 
@@ -105,7 +109,7 @@ class ArgoData(object):
         self.variables = set(variables)
 
         self.logger.setLevel(self._log_levels[verbosity])
-        self._oxygen_required = oxygen_required
+        self._bio_list = bio_list
 
         if cache_file:
             self.cache_file_parms = self._get_cache_file_parms(cache_file)
@@ -141,13 +145,24 @@ class ArgoData(object):
         try:
             self.logger.debug('Getting "%s" from %s', name, self.cache_file)
             df = store[name]
+            try:
+                metadata = store.get_storer(name).attrs.metadata
+            except AttributeError:
+                metadata = None
         except (IOError, KeyError):
             raise
         finally:
             self.logger.debug('store.close()')
             store.close()
 
-        return df
+        return df, metadata
+
+    def _remove_df(self, name):
+        '''Remove name from cache file
+        '''
+        with pd.HDFStore(self.cache_file) as store:
+            self.logger.debug('Removing "%s" from %s', name, self.cache_file)
+            store.remove(name)
 
     def _status_to_df(self):
         '''Read the data at status_url link and return it as a Pandas DataFrame.
@@ -190,22 +205,26 @@ class ArgoData(object):
         '''Return list of tuples that is used for Pandas MultiIndex hireachical 
         index and indices to pressure variable.
         '''
+        pressures = []
+        pres_indices = []
         try:
             pressures, pres_indices = self._get_pressures(ds, max_pressure, nprof)
         except pydap.exceptions.ServerError as e:
             self.logger.error(e)
+        except IndexError:
+            self.logger.warn('Profile [%s] does not exist', nprof)
 
         # Make a DataFrame with a hierarchical index for better efficiency
         # Argo data have a N_PROF dimension always of length 1, hence the [0]
         tuples = [(wmo, ds['JULD'].values[nprof], ds['LONGITUDE'].values[nprof], 
-                        ds['LATITUDE'].values[nprof], round(pres, 1), profile)
+                        ds['LATITUDE'].values[nprof], profile, round(pres, 2))
                                         for pres in pressures]
         indices = pd.MultiIndex.from_tuples(tuples, 
-                names=['wmo', 'time', 'lon', 'lat', 'pressure', 'profile'])
+                names=['wmo', 'time', 'lon', 'lat', 'profile', 'pressure'])
 
         return indices, pres_indices
 
-    def _build_profile_dataframe(self, wmo, ds, max_pressure, profile, nprof):
+    def _build_profile_dataframe(self, wmo, url, ds, max_pressure, profile, nprof):
         '''Return DataFrame containing the variables from N_PROF column in
         url specified by nprof integer (0,1).
         '''
@@ -218,23 +237,27 @@ class ArgoData(object):
                 s = pd.Series(ds[v].values[nprof][pres_indices], index=indices)
                 self.logger.debug('Added %s to DataFrame', v)
                 df[v] = s
-            except KeyError:
+            except (KeyError, TypeError):
                 self.logger.warn('%s not in %s', v, url)
             except pydap.exceptions.ServerError as e:
                 self.logger.error(e)
 
         return df
 
-    def _profile_to_dataframe(self, wmo, url, key, max_pressure, bio_list):
+    def _profile_to_dataframe(self, wmo, url, key, max_pressure):
         '''Return a Pandas DataFrame of profiling float data from data at url.
-        Examine data at url for variables in bio_list that may be in the lower
-        vertical resolution [1] N_PROF array.
+        Examine data at url for variables in self._bio_list that may be in 
+        the lower vertical resolution [1] N_PROF array.
         '''
+        df = self._blank_df
         try:
             self.logger.debug('Opening %s', url)
             ds = xray.open_dataset(url)
         except pydap.exceptions.ServerError:
             self.logger.error('ServerError opening %s', url)
+            return df
+        except Exception as e:
+            self.logger.error('Error opening %s: %s', url, str(e))
             return df
 
         self.logger.debug('Checking %s for our desired variables', url)
@@ -244,17 +267,34 @@ class ArgoData(object):
 
         profile = int(key.split('P')[1])
 
-        df = self._build_profile_dataframe(wmo, ds, max_pressure, profile, nprof=0)
+        df = self._build_profile_dataframe(wmo, url, ds, max_pressure, 
+                                           profile, nprof=0)
 
         # Check for required bio variables - should only the low resolution 
         # data be returned or should the high resolution T/S data be 
         # concatenated with the lower vertical resolution variables?
-        for var in bio_list:
+        for var in self._bio_list:
             if df[var].dropna().empty:
                 self.logger.warn('%s: N_PROF [0] empty, trying [1]', var)
-                df = self._build_profile_dataframe(wmo, ds, max_pressure, profile, nprof=1)
+                df = self._build_profile_dataframe(wmo, url, ds, max_pressure, 
+                                                   profile, nprof=1)
 
         return df
+
+    def _get_update_datetime(self, url):
+        '''Return python datetime of DATE_UPDATE variable from NetCDF file at url
+        '''
+        dt = None
+        try:
+            self.logger.debug('Opening %s', url)
+            ds = xray.open_dataset(url)
+        except pydap.exceptions.ServerError:
+            self.logger.error('ServerError opening %s', url)
+            return dt
+
+        dt = datetime.strptime(ds['DATE_UPDATE'].values, '%Y%m%d%H%M%S')
+
+        return dt
 
     def _float_profile_key(self, url):
         '''Return last part of url as key that serves as a PyTables/HDF 
@@ -281,11 +321,11 @@ class ArgoData(object):
             age_gte (int): Restrict to floats with data >= age, defaults to 340
         '''
         try:
-            df = self._get_df(self._STATUS)
+            df, _ = self._get_df(self._STATUS)
         except (IOError, KeyError):
             self.logger.debug('Could not read status from cache, loading it.')
             self._put_df(self._status_to_df(), self._STATUS)
-            df = self._get_df(self._STATUS)
+            df, _ = self._get_df(self._STATUS)
 
         odf = df.query('(OXYGEN == 1) & (GREYLIST == 0) & (AGE != 0) & '
                        '(AGE >= {:d})'.format(age_gte))
@@ -299,12 +339,12 @@ class ArgoData(object):
             wmo_list (list[str]): List of strings of float numbers
         '''
         try:
-            df = self._get_df(self._GLOBAL_META)
+            df, _ = self._get_df(self._GLOBAL_META)
         except KeyError:
             self.logger.debug('Could not read global_meta, putting it into cache.')
             self._put_df(self._ftp_csv_to_df(self.global_url, 
                               date_columns=['date_update']), self._GLOBAL_META)
-            df = self._get_df(self._GLOBAL_META)
+            df, _ = self._get_df(self._GLOBAL_META)
 
         dac_urls = {}
         for _, row in df.loc[:,['file']].iterrows():
@@ -324,12 +364,12 @@ class ArgoData(object):
         '''Return Pandas DataFrame of data at url
         '''
         try:
-            df = self._get_df(self._BIO_PROFILE_INDEX)
+            df, _ = self._get_df(self._BIO_PROFILE_INDEX)
         except KeyError:
             self.logger.debug('Adding %s to cache', self._BIO_PROFILE_INDEX)
             self._put_df(self._ftp_csv_to_df(url, date_columns=['date', 'date_update']),
                          self._BIO_PROFILE_INDEX)
-            df = self._get_df(self._BIO_PROFILE_INDEX)
+            df, _ = self._get_df(self._BIO_PROFILE_INDEX)
 
         return df
 
@@ -451,7 +491,7 @@ class ArgoData(object):
         return df
 
     def _save_profile(self, url, count, opendap_urls, wmo, key, code,
-                      max_pressure, float_msg, max_profiles, bio_list):
+                      max_pressure, float_msg, max_profiles):
         '''Put profile data into the local HDF cache.
         '''
         m_t = '{}, Profile {} of {}, key = {}, code = {}'
@@ -466,26 +506,27 @@ class ArgoData(object):
 
         try:
             self.logger.info(msg)
-            df = self._profile_to_dataframe(wmo, url, key, max_pressure, bio_list)
-            if not df.dropna().empty and self._oxygen_required:
+            df = self._profile_to_dataframe(wmo, url, key, max_pressure)
+            if not df.dropna().empty and 'DOXY_ADJUSTED' in self._bio_list:
                 df = self._validate_oxygen(df, url)
         except RequiredVariableNotPresent as e:
             self.logger.warn(str(e))
             df = self._blank_df
 
-        self._put_df(df, key, dict(url=url))
+        self._put_df(df, key, dict(url=url, dateloaded=datetime.utcnow()))
 
         return df
 
     def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
-                                  append_df=True, bio_list=('DOXY_ADJUSTED',)):
+                                  append_df=True, check_for_updated=False):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
         max_profiles is set to a number then data from only those profiles
         will be returned, this is useful for testing or for getting just 
         the most recent profiles from the float. To load only surface data
         set a max_pressure value. Set append_df to False if calling simply 
-        to load cache_file (reduces memory requirements).
+        to load cache_file (reduces memory requirements).  Set check_for_updated
+        to True to reload into the cache updated delayed mode data.
         '''
         max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
         max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
@@ -504,11 +545,20 @@ class ArgoData(object):
                 except AttributeError:
                     continue
                 try:
-                    df = self._get_df(key)
+                    df, m = self._get_df(key)
+                    if 'D' in code.upper() and check_for_updated:
+                        DATE_UPDATED = self._get_update_datetime(url)
+                        if DATE_UPDATED:
+                            if m['dateloaded'] < DATE_UPDATED:
+                                self.logger.info(
+                                        'Replacing %s as dateloaded time of %s'
+                                        ' is before DATE_UPDATED time of %s',
+                                        key, m['dateloaded'], DATE_UPDATED)
+                                self._remove_df(key)
+                                raise KeyError
                 except KeyError:
                     df = self._save_profile(url, i, opendap_urls, wmo, key, code,
-                                            max_pressure, float_msg, max_profiles,
-                                            bio_list)
+                                            max_pressure, float_msg, max_profiles)
 
                 self.logger.debug(df.head())
                 if append_df and not df.dropna().empty:
