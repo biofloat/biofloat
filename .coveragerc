@@ -18,3 +18,7 @@ exclude_lines =
     except ConnectionError
     self.logger.error
     self.logger.exception
+    except NameError
+
+    # Hard to test delayed mode file update
+    if 'D' in code.upper
