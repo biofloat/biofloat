@@ -512,6 +512,9 @@ class ArgoData(object):
         except RequiredVariableNotPresent as e:
             self.logger.warn(str(e))
             df = self._blank_df
+        except KeyError as e:
+            self.logger.error(str(e))
+            df = self._blank_df
 
         self._put_df(df, key, dict(url=url, dateloaded=datetime.utcnow()))
 
