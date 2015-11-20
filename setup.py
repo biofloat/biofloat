@@ -18,7 +18,8 @@ setup(
         'simpletable>=0.2',
         'xray>=0.6'
     ],
-    scripts = ['scripts/load_biofloat_cache.py'],
+    scripts = ['scripts/load_biofloat_cache.py',
+               'scripts/woa_calibration.py'],
 
     # metadata for upload to PyPI
     author = "Mike McCann",
