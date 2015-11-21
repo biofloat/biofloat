@@ -22,20 +22,27 @@ def round_to(n, increment, mark):
     correction = mark if n >= 0 else -mark
     return int( n / increment) + correction
 
-def woa_o2sat(month, depth, lon, lat):
+def woa_o2sat(month, lon, lat, depth=5, verbose=0):
     '''Perform the WOA climatology database lookup for the temporal
-    spatial corrdinates passed in.
+    spatial corrdinates passed in.  Passed in coordinates must match
+    the grid of the WOA NetCDF file.
     '''
-    ds = xray.open_dataset(woa[month], decode_times=False)
 
-    return ds.loc[dict(lon=lon, lat=lat, depth=depth)]['O_an'].values[0]
+    ds = xray.open_dataset(woa[month], decode_times=False)
+    o2sat = ds.loc[dict(lon=lon, lat=lat, depth=depth)]['O_an'].values[0]
+
+    if verbose:
+        fmt = 'month: {:2.0f}, depth: {:2.0f}, lon: {:6.1f}, lat: {:5.1f}, o2sat: {:6.2f}'
+        print (fmt).format(month, depth, lon, lat, o2sat)
+
+    return o2sat
 
 def surface_mean(df, max_pressure=10):
     '''Return DataFrame of surface mean values for data with pressure 
     less than max_pressure.
     '''
     return df.query(('pressure < {:d}').format(max_pressure)).groupby(
-            level=['wmo', 'time', 'lon', 'lat', 'profile']).mean()
+            level=['wmo', 'time', 'lon', 'lat']).mean()
 
 def add_columns_for_groupby(df):
     '''Add columns derived from the index to make groupbys easier.
@@ -65,11 +72,13 @@ def add_columns_for_woa_lookup(df):
 
     return df
 
-def add_column_from_woa(df, pressure=5.0):
+def add_column_from_woa(df, pressure=5.0, verbose=0):
     '''Adds 'woa_o2sat' column to df at provided pressure.
     '''
     df['month'] = df.index.get_level_values('month')
-    df['woa_o2sat'] = df.apply(lambda x: woa_o2sat(x.month, pressure, x.ilon, x.ilat), axis=1)
+    # Near surface depth in meters is about the same as pressure in db
+    df['woa_o2sat'] = df.apply(lambda x: woa_o2sat(x.month, x.ilon, x.ilat, 
+                                         depth=pressure, verbose=verbose), axis=1)
 
     return df
 
