@@ -105,6 +105,12 @@ class DataTest(unittest.TestCase):
         df = self.ad.get_cache_file_oxy_count_df(max_profiles=2)
         self.assertNotEqual(len(df), 0)
 
+    def test_get_update_datetime(self):
+        # Any random delayed mode file will do...
+        dt = self.ad._get_update_datetime(
+                'http://tds0.ifremer.fr/thredds/dodsC/CORIOLIS-ARGO-GDAC-OBS/aoml/5901336/profiles/D5901336_082.nc')
+
+
 
 if __name__ == '__main__':
     unittest.main()

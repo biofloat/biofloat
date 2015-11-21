@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = "biofloat",
-    version = "0.2.0",
+    version = "0.3.0",
     packages = find_packages(),
     requires = ['Python (>=2.7)'],
     install_requires = [
@@ -18,7 +18,8 @@ setup(
         'simpletable>=0.2',
         'xray>=0.6'
     ],
-    scripts = ['scripts/load_biofloat_cache.py'],
+    scripts = ['scripts/load_biofloat_cache.py',
+               'scripts/woa_calibration.py'],
 
     # metadata for upload to PyPI
     author = "Mike McCann",
