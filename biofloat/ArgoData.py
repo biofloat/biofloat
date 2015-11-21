@@ -621,7 +621,7 @@ class ArgoData(object):
                         oxy_hash[wmo] = (
                                 len(odf.index.get_level_values('time').unique()),
                                 len(odf))
-                except KeyError:
+                except (KeyError, AttributeError):
                     pass
 
             num_profiles = pd.Series([v[0] for v in oxy_hash.values()])
