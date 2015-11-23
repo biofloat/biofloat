@@ -67,8 +67,7 @@ class ArgoData(object):
             status_url='http://argo.jcommops.org/FTPRoot/Argo/Status/argo_all.txt',
             global_url='ftp://ftp.ifremer.fr/ifremer/argo/ar_index_global_meta.txt',
             thredds_url='http://tds0.ifremer.fr/thredds/catalog/CORIOLIS-ARGO-GDAC-OBS',
-            variables=('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED', 
-                       'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD')):
+            variables=('TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED')):
 
         '''Initialize ArgoData object.
         
@@ -230,7 +229,7 @@ class ArgoData(object):
         '''
         df = pd.DataFrame()
         # Add only non-coordinate variables to the DataFrame
-        for v in self.variables ^ self._coordinates:
+        for v in self.variables:
             try:
                 indices, pres_indices = self._multi_indices(wmo, ds, 
                                              max_pressure, profile, nprof)
@@ -261,7 +260,7 @@ class ArgoData(object):
             return df
 
         self.logger.debug('Checking %s for our desired variables', url)
-        for v in self.variables:
+        for v in self._coordinates.union(self.variables):
             if v not in ds.keys():
                 raise RequiredVariableNotPresent('{} not in {}'.format(v, url))
 
