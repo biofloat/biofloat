@@ -55,11 +55,12 @@ class WOA_Calibrator(object):
             sdf = add_columns_for_groupby(sdf)
             msdf = monthly_mean(sdf)
             msdf = add_columns_for_woa_lookup(msdf)
-            self.logger.info('Doing WOA lookup')
-            woadf = add_column_from_woa(msdf)
+            self.logger.info('Doing WOA lookup for %s points', len(msdf))
+            woadf = add_column_from_woa(msdf, verbose=self.args.verbose)
             gdf = calculate_gain(woadf)
 
-            print(gdf.groupby('wmo').gain.mean())
+            self.logger.info('Gain for %s = %s', wmo, gdf.groupby('wmo').gain.mean().values[0])
+            # TODO: Save to HDf file
 
     def process_command_line(self):
         import argparse
@@ -85,6 +86,8 @@ class WOA_Calibrator(object):
                                      help='Maximum number of profiles to read in')
         parser.add_argument('--pressure', action='store', 
                                      help='Maximum pressure to read in')
+        parser.add_argument('--results_file', action='store', 
+                                     help='File name to save df of the results')
         parser.add_argument('-v', '--verbose', nargs='?', choices=[0,1,2,3], type=int,
                             help='0: ERROR, 1: WARN, 2: INFO, 3:DEBUG', default=0, const=2)
 

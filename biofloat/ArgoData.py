@@ -379,6 +379,7 @@ class ArgoData(object):
         '''
         durls = []
         hasdurls = []
+        mrurls = []
         rurls = []
         for url in urls:
             regex = re.compile(r"([a-zA-Z]+)\d+_\d+.nc$")
@@ -390,10 +391,12 @@ class ArgoData(object):
                 durls.append(url)
             elif 'D' in code:
                 hasdurls.append(url)
+            elif 'MR' == code:
+                mrurls.append(url)
             else:
                 rurls.append(url)
 
-        return durls + hasdurls + rurls
+        return durls + hasdurls + mrurls + rurls
 
     def get_profile_opendap_urls(self, catalog_url):
         '''Returns list of opendap urls for the profiles in catalog. The 
@@ -445,7 +448,7 @@ class ArgoData(object):
         try:
             cache_file_value = self.cache_file_parms[parm]
         except KeyError:
-            if isinstance(value, int):
+            if isinstance(value, int) and not adjusted_value:
                 # Return a ridiculously large integer to force reading all data
                 adjusted_value =  self._MAX_VALUE
         except AttributeError:
@@ -481,10 +484,10 @@ class ArgoData(object):
 
         return adjusted_value
 
-    def _validate_oxygen(self, df, url):
+    def _validate_oxygen(self, df, url, var_name='DOXY_ADJUSTED'):
         '''Return blank DataFrame if no valid oxygen otherwise return df.
         '''
-        if df['DOXY_ADJUSTED'].dropna().empty:
+        if df[var_name].dropna().empty:
             self.logger.warn('Oxygen is all NaNs in %s', url)
             df = self._blank_df
 
@@ -507,8 +510,11 @@ class ArgoData(object):
         try:
             self.logger.info(msg)
             df = self._profile_to_dataframe(wmo, url, key, max_pressure)
-            if not df.dropna().empty and 'DOXY_ADJUSTED' in self._bio_list:
-                df = self._validate_oxygen(df, url)
+            if not df.dropna().empty:
+                if 'DOXY_ADJUSTED' in self._bio_list:
+                    df = self._validate_oxygen(df, url, 'DOXY_ADJUSTED')
+                elif 'DOXY' in self._bio_list:
+                    df = self._validate_oxygen(df, url, 'DOXY')
         except RequiredVariableNotPresent as e:
             self.logger.warn(str(e))
             df = self._blank_df
@@ -616,12 +622,13 @@ class ArgoData(object):
             for wmo in self.get_cache_file_all_wmo_list(flush=flush):
                 df = self.get_float_dataframe([wmo], max_profiles)
                 try:
-                    if not df['DOXY_ADJUSTED'].dropna().empty:
+                    if (not df['DOXY_ADJUSTED'].dropna().empty) or (
+                        not df['DOXY'].dropna().empty):
                         odf = df.dropna().xs(wmo, level='wmo')
                         oxy_hash[wmo] = (
                                 len(odf.index.get_level_values('time').unique()),
                                 len(odf))
-                except KeyError:
+                except (KeyError, AttributeError):
                     pass
 
             num_profiles = pd.Series([v[0] for v in oxy_hash.values()])
