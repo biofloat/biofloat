@@ -621,8 +621,15 @@ class ArgoData(object):
             for wmo in self.get_cache_file_all_wmo_list(flush=flush):
                 df = self.get_float_dataframe([wmo], max_profiles)
                 try:
-                    if (not df['DOXY_ADJUSTED'].dropna().empty) or (
-                        not df['DOXY'].dropna().empty):
+                    if not df['DOXY_ADJUSTED'].dropna().empty:
+                        odf = df.dropna().xs(wmo, level='wmo')
+                        oxy_hash[wmo] = (
+                                len(odf.index.get_level_values('time').unique()),
+                                len(odf))
+                except (KeyError, AttributeError):
+                    pass
+                try:
+                    if not df['DOXY'].dropna().empty:
                         odf = df.dropna().xs(wmo, level='wmo')
                         oxy_hash[wmo] = (
                                 len(odf.index.get_level_values('time').unique()),
@@ -639,7 +646,6 @@ class ArgoData(object):
             self.logger.info('Putting %s into cache', self._OXY_COUNT_DF)
             with pd.HDFStore(self.cache_file) as s:
                 s.put(self._OXY_COUNT_DF, oxy_count_df, format='fixed')
-            self.logger.info('Putting %s into cache', self._OXY_COUNT_DF)
 
         return oxy_count_df
 
