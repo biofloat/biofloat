@@ -379,6 +379,7 @@ class ArgoData(object):
         '''
         durls = []
         hasdurls = []
+        mrurls = []
         rurls = []
         for url in urls:
             regex = re.compile(r"([a-zA-Z]+)\d+_\d+.nc$")
@@ -390,10 +391,12 @@ class ArgoData(object):
                 durls.append(url)
             elif 'D' in code:
                 hasdurls.append(url)
+            elif 'MR' == code:
+                mrurls.append(url)
             else:
                 rurls.append(url)
 
-        return durls + hasdurls + rurls
+        return durls + hasdurls + mrurls + rurls
 
     def get_profile_opendap_urls(self, catalog_url):
         '''Returns list of opendap urls for the profiles in catalog. The 
