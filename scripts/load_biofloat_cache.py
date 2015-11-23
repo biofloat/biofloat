@@ -68,7 +68,7 @@ class ArgoDataLoader(object):
                                          append_df=False)
 
         # After loading add lookup information to the cache file
-        df = ad.get_cache_file_oxy_count_df(max_profiles=self.args.profiles)
+        df = ad.get_cache_file_oxy_count_df(max_profiles=self.args.profiles, flush=True)
         print(('{} floats appear to have valid oxygen data').format(len(df)))
         print(('Finished loading cache file {}').format(cache_file))
 
@@ -103,7 +103,7 @@ class ArgoDataLoader(object):
         parser.add_argument('--cache_dir', action='store', help='Directory for cache file'
                             ' otherwise it is \nput in the users home directory')
         parser.add_argument('--bio_list', action='store', nargs='*', default=['DOXY_ADJUSTED'],
-                            help='Bio-Argo variables to add to the DataFrame') 
+                            help='List of bio variables to look for in N_PROF 1') 
         parser.add_argument('--variables', action='store', nargs='*', 
                             default=['TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED'],
                             help='Bio-Argo variables to add to the DataFrame') 
