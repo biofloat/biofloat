@@ -32,7 +32,7 @@ def woa_o2sat(month, lon, lat, depth=5, verbose=0):
     o2sat = ds.loc[dict(lon=lon, lat=lat, depth=depth)]['O_an'].values[0]
 
     if verbose:
-        fmt = 'month: {:2.0f}, depth: {:2.0f}, lon: {:6.1f}, lat: {:5.1f}, o2sat: {:6.2f}'
+        fmt = 'month: {:2.0f}, depth: {:2.0f}, lon: {:6.1f}, lat: {:5.1f}, woa_o2sat: {:6.2f}'
         print (fmt).format(month, depth, lon, lat, o2sat)
 
     return o2sat
