@@ -55,7 +55,8 @@ class ArgoDataLoader(object):
         cache_file = abspath(join(cache_dir, cache_file))
 
         print(('Loading cache file {}').format(cache_file))
-        ad = ArgoData(verbosity=self.args.verbose, cache_file=cache_file)
+        ad = ArgoData(verbosity=self.args.verbose, cache_file=cache_file,
+                      bio_list=self.args.bio_list, variables=self.args.variables)
 
         if self.args.age:
             wmo_list = ad.get_oxy_floats_from_status(age_gte=self.args.age)
@@ -82,11 +83,12 @@ class ArgoDataLoader(object):
         examples += sys.argv[0] + " --wmo 1900650 1901157 5901073 -v\n"
         examples += "\n\n"
     
-        parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
+        parser = argparse.ArgumentParser(
                     description='Script to load local HDF cache with Argo float data.\n'
-                                'Default cache file is located in biofloat module\n'
+                                'Default cache file is located in users home\n'
                                 'directory named with constraints used to build the\n'
                                 'cache file.',
+                    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                     epilog=examples)
                                              
         parser.add_argument('--age', action='store', type=int,
@@ -99,7 +101,12 @@ class ArgoDataLoader(object):
                             help='Select pressures less than this value')
         parser.add_argument('--cache_file', action='store', help='Override default file')
         parser.add_argument('--cache_dir', action='store', help='Directory for cache file'
-                            ' otherwise it is \nput in the biofloat module directory')
+                            ' otherwise it is \nput in the users home directory')
+        parser.add_argument('--bio_list', action='store', nargs='*', default=['DOXY_ADJUSTED'],
+                            help='Bio-Argo variables to add to the DataFrame') 
+        parser.add_argument('--variables', action='store', nargs='*', 
+                            default=['TEMP_ADJUSTED', 'PSAL_ADJUSTED', 'DOXY_ADJUSTED'],
+                            help='Bio-Argo variables to add to the DataFrame') 
         parser.add_argument('-v', '--verbose', nargs='?', choices=[0,1,2,3], type=int,
                             help='0: ERROR, 1: WARN, 2: INFO, 3:DEBUG', default=0, const=2)
 
