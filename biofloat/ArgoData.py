@@ -448,7 +448,7 @@ class ArgoData(object):
         try:
             cache_file_value = self.cache_file_parms[parm]
         except KeyError:
-            if isinstance(value, int):
+            if isinstance(value, int) and not adjusted_value:
                 # Return a ridiculously large integer to force reading all data
                 adjusted_value =  self._MAX_VALUE
         except AttributeError:
