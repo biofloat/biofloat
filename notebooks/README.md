@@ -21,6 +21,7 @@ PYTHONPATH environment variable to that directory.
     ipython notebook
 
 A browser window should open with a directory listing of the notebooks for you to select. 
+
 Here is a brief description of the Notebooks that were created during the development 
 of the biofloat module:
 
@@ -31,3 +32,5 @@ of the biofloat module:
 
 ##### More Notebooks
 1. compare_oxygen_calibrations.ipynb
+2. oxygen_calibration_5903264_DOXY.ipynb
+3. calibrate_all_oxygen_floats.ipynb
