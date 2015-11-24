@@ -2,12 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
     name = "biofloat",
-    version = "0.3.0",
+    version = "0.3.1",
     packages = find_packages(),
     requires = ['Python (>=2.7)'],
     install_requires = [
         'beautifulsoup4>=4.4',
         'coverage>=4',
+        'geopandas>=0.1.1',
         'jupyter>=1.0.0',
         'matplotlib',
         'numpy>=1.10',
