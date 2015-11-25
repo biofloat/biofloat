@@ -8,6 +8,7 @@ sys.path.insert(0, parentDir)
 
 from biofloat import ArgoData
 from biofloat import utils
+from biofloat import converters
 
 class DataTest(unittest.TestCase):
     def setUp(self):
@@ -110,6 +111,9 @@ class DataTest(unittest.TestCase):
         dt = self.ad._get_update_datetime(
                 'http://tds0.ifremer.fr/thredds/dodsC/CORIOLIS-ARGO-GDAC-OBS/aoml/5901336/profiles/D5901336_082.nc')
 
+    def test_to_odv(self):
+        df = self.ad.get_float_dataframe(self.good_oga_floats, max_profiles=2)
+        converters.to_odv(df, 'biofloat_data.txt')
 
 
 if __name__ == '__main__':

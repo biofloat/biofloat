@@ -26,11 +26,11 @@ Here is a brief description of the Notebooks that were created during the develo
 of the biofloat module:
 
 #####  First Notebooks, used to test local cache file operation and Pandas capabilities
-1. build_biofloat_cache.ipynb
-2. explore_cached_biofloat_data.ipynb
-3. explore_surface_oxygen_and_WOA.ipynb
+1. [build_biofloat_cache.ipynb](build_biofloat_cache.ipynb)
+2. [explore_cached_biofloat_data.ipynb](explore_cached_biofloat_data.ipynb)
+3. [explore_surface_oxygen_and_WOA.ipynb](explore_surface_oxygen_and_WOA.ipynb)
 
-##### More Notebooks
-1. compare_oxygen_calibrations.ipynb
-2. oxygen_calibration_5903264_DOXY.ipynb
-3. calibrate_all_oxygen_floats.ipynb
+##### Notebooks exploring calibrations against the World Ocean Atlas 
+1. [compare_oxygen_calibrations.ipynb](compare_oxygen_calibrations.ipynb)
+2. [oxygen_calibration_5903264_DOXY.ipynb](oxygen_calibration_5903264_DOXY.ipynb)
+3. [calibrate_all_oxygen_floats.ipynb](calibrate_all_oxygen_floats.ipynb)

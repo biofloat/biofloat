@@ -83,6 +83,7 @@ class WOA_Calibrator(object):
                 with pd.HDFStore(self.args.results_file) as s:
                     s.put(('/WOA_WMO_{}').format(wmo), wmo_gdf)
 
+            self.logger.debug('wmo_gdf head: %s', wmo_gdf.head())
             self.logger.info('Gain for %s = %s', wmo, wmo_gdf.groupby('wmo').gain.mean().values[0])
 
     def process_command_line(self):
