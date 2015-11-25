@@ -579,22 +579,22 @@ class ArgoData(object):
         wmo_series = pd.Series([])
         if flush:
             try:
-                with pd.HDFStore(self.cache_file) as s:
+                with pd.HDFStore(self.cache_file, mode='r+') as s:
                     s.remove(self._ALL_WMO_LIST)
             except KeyError:
                 pass
         try:
-            with pd.HDFStore(self.cache_file) as s:
+            with pd.HDFStore(self.cache_file, mode='r+') as s:
                 wmo_series = s[self._ALL_WMO_LIST]
                 self.logger.info('Read %s from cache', self._ALL_WMO_LIST)
         except (KeyError, TypeError):
-            with pd.HDFStore(self.cache_file) as f:
+            with pd.HDFStore(self.cache_file, mode='r+') as f:
                 wmo_set = {g.split('/')[1].split('_')[1] 
                               for g in f.keys() if g.startswith('/WMO')}
 
             wmo_series = pd.Series(list(sorted(wmo_set)))
             self.logger.info('Putting %s into cache', self._ALL_WMO_LIST)
-            with pd.HDFStore(self.cache_file) as s:
+            with pd.HDFStore(self.cache_file, mode='r+') as s:
                 s.put(self._ALL_WMO_LIST, wmo_series, format='fixed')
 
         return wmo_series.tolist()
@@ -607,12 +607,12 @@ class ArgoData(object):
         oxy_count_df = pd.DataFrame()
         if flush:
             try:
-                with pd.HDFStore(self.cache_file) as s:
+                with pd.HDFStore(self.cache_file, mode='r+') as s:
                     s.remove(self._OXY_COUNT_DF)
             except KeyError:
                 pass
         try:
-            with pd.HDFStore(self.cache_file) as s:
+            with pd.HDFStore(self.cache_file, mode='r+') as s:
                 oxy_count_df = s[self._OXY_COUNT_DF]
                 self.logger.info('Read %s from cache', self._OXY_COUNT_DF)
         except KeyError:
@@ -643,7 +643,7 @@ class ArgoData(object):
                                     num_measurements = num_measurements))
 
             self.logger.info('Putting %s into cache', self._OXY_COUNT_DF)
-            with pd.HDFStore(self.cache_file) as s:
+            with pd.HDFStore(self.cache_file, mode='r+') as s:
                 s.put(self._OXY_COUNT_DF, oxy_count_df, format='fixed')
 
         return oxy_count_df
