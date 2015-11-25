@@ -405,7 +405,7 @@ class ArgoData(object):
         '''
         urls = []
         try:
-            self.logger.debug("Parsing %s", catalog_url)
+            self.logger.info("Checking for updates at %s", catalog_url)
             req = requests.get(catalog_url)
         except ConnectionError as e:
             self.logger.error('Cannot open catalog_url = %s', catalog_url)
@@ -540,6 +540,7 @@ class ArgoData(object):
         max_wmo_list = self._validate_cache_file_parm('wmo', wmo_list)
 
         float_df = pd.DataFrame()
+        self.logger.info('Using cache_file %s', self.cache_file)
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(max_wmo_list).iteritems()):
             float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(max_wmo_list))
             opendap_urls = self.get_profile_opendap_urls(dac_url)

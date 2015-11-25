@@ -35,5 +35,5 @@ def to_odv(df, odv_file_name, vars=None):
                         i[5], 0]
             rec_vars = '\t'.join([('{:f}\t0').format(r[v]) 
                                   for v in vars.keys()])
-            odv.write(fmt_base.format(*rec_base) + rec_vars)
+            odv.write(fmt_base.format(*rec_base) + rec_vars + '\n')
 
