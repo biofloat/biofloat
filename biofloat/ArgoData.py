@@ -138,7 +138,7 @@ class ArgoData(object):
         store.close()
 
     def _get_df(self, name):
-        '''Get Pandas DataFrame from local HDF file or raise KeyError.
+        '''Return tuple of Pandas DataFrame and metadata dictionary.
         '''
         store = pd.HDFStore(self.cache_file)
         try:
