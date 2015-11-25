@@ -462,10 +462,9 @@ class ArgoData(object):
                     self.logger.info("Setting %s to %s", parm, cache_file_value)
                     adjusted_value = int(cache_file_value)
             else:
-                floats_not_in_file = set(value) ^ set(cache_file_value.split('-'))
-                if floats_not_in_file:
+                if not set(value) <= set(cache_file_value.split('-')):
                     self.logger.warn("Requested item(s) %s %s not in fixed cache file: %s",
-                                      parm, floats_not_in_file, cache_file_value)
+                                      parm, set(value), cache_file_value)
                     adjusted_value = cache_file_value.split('-')
 
         elif not value and cache_file_value:
