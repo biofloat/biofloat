@@ -56,6 +56,7 @@ class ArgoData(object):
     _profilesRE = 'profiles([0-9]+)'
     _pressureRE = 'pressure([0-9]+)'
     _wmoRE = 'wmo([0-9-]+)'
+    _variablesRE = 'var([0-9-]+)'
 
     _MAX_VALUE = 10000000000
     _compparms = dict(complib='zlib', complevel=9)
