@@ -20,19 +20,19 @@ lbc_args=$@
 
 ct=$(date +"%s")
 ft=$(stat -c %Y $log_file)
-
 log_file_age=$((ct - ft))
-##echo $log_file_age
+
 if [ $log_file_age -gt 600 ]
 then
     echo Paused
     last_line=$(tail -1 $log_file)
-    echo "$lbc_cmd has paused.  Attempting to kill and restart.\n$last_line" | mail -s $log_file $email_address
+    echo -e "$lbc_cmd has paused.  Attempting to kill and restart.\n$last_line" | mail -s $log_file $email_address
     # Can't seem to grep for $lbc_args, grep for load_biofloat_cache.py instead
-    ##pid=$(ps -ef | grep "\"$lbc_args\"" | awk -F' ' '{print $2}')
+    pid0=$(ps -ef | awk /$lbc_args/ | awk -F' ' '{print $2}')
     pid=$(ps -ef | grep load_biofloat_cache.py | grep -v bash | grep -v grep | awk -F' ' '{print $2}')
     if [ ! -z $pid ]
     then
+        echo pid0: $pid0
         echo Killing $pid
         kill $pid
     fi
