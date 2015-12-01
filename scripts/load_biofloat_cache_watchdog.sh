@@ -18,6 +18,9 @@ lbc_cmd=$@
 shift
 lbc_args=$@
 
+# Escape special characters as needed by awk search
+lbc_args=$(echo $lbc_args | sed -e 's/[.:\/&]/\\&/g')
+
 ct=$(date +"%s")
 ft=$(stat -c %Y $log_file)
 log_file_age=$((ct - ft))
