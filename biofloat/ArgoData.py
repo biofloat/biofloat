@@ -56,6 +56,7 @@ class ArgoData(object):
     _profilesRE = 'profiles([0-9]+)'
     _pressureRE = 'pressure([0-9]+)'
     _wmoRE = 'wmo([0-9-]+)'
+    _variablesRE = 'var([0-9-]+)'
 
     _MAX_VALUE = 10000000000
     _compparms = dict(complib='zlib', complevel=9)
@@ -507,8 +508,10 @@ class ArgoData(object):
 
         try:
             self.logger.info(msg)
-            df = self._profile_to_dataframe(wmo, url, key, max_pressure)
-            if not df.dropna().empty:
+            df = self._profile_to_dataframe(wmo, url, key, max_pressure).dropna()
+            if df.empty:
+                df = self._blank_df
+            else:
                 if 'DOXY_ADJUSTED' in self._bio_list:
                     df = self._validate_oxygen(df, url, 'DOXY_ADJUSTED')
                 elif 'DOXY' in self._bio_list:
@@ -569,7 +572,7 @@ class ArgoData(object):
                                             max_pressure, float_msg, max_profiles)
 
                 self.logger.debug(df.head())
-                if append_df and not df.dropna().empty:
+                if append_df and not df.empty:
                     float_df = float_df.append(df)
 
         return float_df
