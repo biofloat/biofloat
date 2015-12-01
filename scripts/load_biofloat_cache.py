@@ -25,7 +25,7 @@ class ArgoDataLoader(object):
         for item in [a[1:-2] for a in dir(ArgoData) 
                                  if not callable(a) and a.endswith("RE")]:
             try:
-                value = '-'.join(vars(self.args)[item])
+                value = '-'.join(sorted(vars(self.args)[item]))
             except TypeError:
                 value = vars(self.args)[item]
             except KeyError:
