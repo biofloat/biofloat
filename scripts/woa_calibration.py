@@ -42,15 +42,16 @@ class WOA_Calibrator(object):
         and WOA O2 saturation columns added.  The WOA lookup goes across
         the Internet so can take a minute or so to lookup all the values.
         '''
+        gdf = pd.DataFrame([pd.np.nan])
         sdf = surface_mean(df)
         sdf = add_columns_for_groupby(sdf)
         msdf = monthly_mean(sdf)
-        msdf = add_columns_for_woa_lookup(msdf)
-        self.logger.info('Doing WOA lookup for %s points', len(msdf))
-        woadf = add_column_from_woa(msdf, verbose=(self.args.print_woa_lookups 
+        if not msdf.empty:
+            msdf = add_columns_for_woa_lookup(msdf)
+            self.logger.info('Doing WOA lookup for %s points', len(msdf))
+            woadf = add_column_from_woa(msdf, verbose=(self.args.print_woa_lookups 
                                                    and self.args.verbose))
-
-        gdf = calculate_gain(woadf)
+            gdf = calculate_gain(woadf)
 
         return gdf
 
@@ -83,8 +84,9 @@ class WOA_Calibrator(object):
                 with pd.HDFStore(self.args.results_file) as s:
                     s.put(('/WOA_WMO_{}').format(wmo), wmo_gdf)
 
-            self.logger.debug('wmo_gdf head: %s', wmo_gdf.head())
-            self.logger.info('Gain for %s = %s', wmo, wmo_gdf.groupby('wmo').gain.mean().values[0])
+            if not wmo_gdf.dropna().empty:
+                self.logger.debug('wmo_gdf head: %s', wmo_gdf.head())
+                self.logger.info('Gain for %s = %s', wmo, wmo_gdf.groupby('wmo').gain.mean().values[0])
 
     def process_command_line(self):
         import argparse

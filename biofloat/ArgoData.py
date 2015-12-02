@@ -557,6 +557,7 @@ class ArgoData(object):
                     continue
                 try:
                     df, m = self._get_df(key)
+                    self.logger.debug(m['url'])
                     if 'D' in code.upper() and check_for_updated:
                         DATE_UPDATED = self._get_update_datetime(url)
                         if DATE_UPDATED:
@@ -572,7 +573,7 @@ class ArgoData(object):
                                             max_pressure, float_msg, max_profiles)
 
                 self.logger.debug(df.head())
-                if append_df and not df.empty:
+                if append_df and not df.dropna().empty:
                     float_df = float_df.append(df)
 
         return float_df
