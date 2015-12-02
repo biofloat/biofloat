@@ -557,6 +557,7 @@ class ArgoData(object):
                     continue
                 try:
                     df, m = self._get_df(key)
+                    self.logger.debug(m['url'])
                     if 'D' in code.upper() and check_for_updated:
                         DATE_UPDATED = self._get_update_datetime(url)
                         if DATE_UPDATED:
