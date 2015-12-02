@@ -573,7 +573,7 @@ class ArgoData(object):
                                             max_pressure, float_msg, max_profiles)
 
                 self.logger.debug(df.head())
-                if append_df and not df.empty:
+                if append_df and not df.dropna().empty:
                     float_df = float_df.append(df)
 
         return float_df
