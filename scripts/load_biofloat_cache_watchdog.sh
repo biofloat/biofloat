@@ -31,11 +31,9 @@ then
     last_line=$(tail -1 $log_file)
     echo -e "$lbc_cmd has paused.  Attempting to kill and restart.\n$last_line" | mail -s $log_file $email_address
     # Can't seem to grep for $lbc_args, grep for load_biofloat_cache.py instead
-    pid0=$(ps -ef | awk "/$lbc_args/" | grep -v bash | grep -v grep | awk -F' ' '{print $2}')
-    pid=$(ps -ef | grep load_biofloat_cache.py | grep -v bash | grep -v grep | awk -F' ' '{print $2}')
+    pid=$(ps -ef | awk "/$lbc_args/" | grep -v bash | grep -v grep | awk -F' ' '{print $2}')
     if [ ! -z $pid ]
     then
-        echo pid0: $pid0
         echo Killing $pid
         kill $pid
     fi
