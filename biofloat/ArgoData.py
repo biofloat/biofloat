@@ -530,22 +530,11 @@ class ArgoData(object):
 
         return df
 
-    def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
-                                  append_df=True, update_delayed_mode=False,
-                                  update_cache=True):
-        '''Returns Pandas DataFrame for all the profile data from wmo_list.
-        Uses cached data if present, populates cache if not present.  If 
-        max_profiles limits the number of profiles returned per float,
-        this is useful for testing or for getting just 
-        the most recent profiles from the float. To load only surface data
-        set a max_pressure value. Set append_df to False if calling simply 
-        to load cache_file (reduces memory requirements).  Set update_delayed_mode
-        to True to reload into the cache updated delayed mode data.  If
-        update_cache is True then each DAC will be queried for new profile
-        data, which can take some time; for reading just data from the cache
-        set update_cache=False.
+    def _get_data_from_argo(self, wmo_list, max_profiles=None, max_pressure=None,
+                                  append_df=True, update_delayed_mode=False):
+        '''Query Argo web resources for all the profile data for floats in
+        wmo_list.
         '''
-        self.logger.info('Using cache_file %s', self.cache_file)
         max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
         max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
         max_wmo_list = self._validate_cache_file_parm('wmo', wmo_list)
@@ -584,6 +573,28 @@ class ArgoData(object):
                     float_df = float_df.append(df)
 
         return float_df
+
+    def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
+                                  append_df=True, update_delayed_mode=False,
+                                  update_cache=True):
+        '''Returns Pandas DataFrame for all the profile data from wmo_list.
+        Uses cached data if present, populates cache if not present.  If 
+        max_profiles limits the number of profiles returned per float,
+        this is useful for testing or for getting just 
+        the most recent profiles from the float. To load only surface data
+        set a max_pressure value. Set append_df to False if calling simply 
+        to load cache_file (reduces memory requirements).  Set update_delayed_mode
+        to True to reload into the cache updated delayed mode data.  If
+        update_cache is True then each DAC will be queried for new profile
+        data, which can take some time; for reading just data from the cache
+        set update_cache=False.
+        '''
+        self.logger.info('Using cache_file %s', self.cache_file)
+
+        df = self._get_data_from_argo(wmo_list, max_profiles, max_pressure,
+                                      append_df, update_delayed_mode)
+
+        return df
 
     def get_cache_file_all_wmo_list(self, flush=False):
         '''Return wmo numbers of all the floats in the cache file
