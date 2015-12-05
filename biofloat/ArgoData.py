@@ -113,6 +113,9 @@ class ArgoData(object):
 
         if cache_file:
             self.cache_file_parms = self._get_cache_file_parms(cache_file)
+            if self.cache_file_parms:
+                self.logger.info('Using fixed cache file parms: %s', 
+                                 self.cache_file_parms)
             self.cache_file = cache_file
         else:
             # Write default cache to users home directory 
@@ -528,22 +531,26 @@ class ArgoData(object):
         return df
 
     def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
-                                  append_df=True, check_for_updated=False):
+                                  append_df=True, update_delayed_mode=False,
+                                  update_cache=True):
         '''Returns Pandas DataFrame for all the profile data from wmo_list.
         Uses cached data if present, populates cache if not present.  If 
-        max_profiles is set to a number then data from only those profiles
-        will be returned, this is useful for testing or for getting just 
+        max_profiles limits the number of profiles returned per float,
+        this is useful for testing or for getting just 
         the most recent profiles from the float. To load only surface data
         set a max_pressure value. Set append_df to False if calling simply 
-        to load cache_file (reduces memory requirements).  Set check_for_updated
-        to True to reload into the cache updated delayed mode data.
+        to load cache_file (reduces memory requirements).  Set update_delayed_mode
+        to True to reload into the cache updated delayed mode data.  If
+        update_cache is True then each DAC will be queried for new profile
+        data, which can take some time; for reading just data from the cache
+        set update_cache=False.
         '''
+        self.logger.info('Using cache_file %s', self.cache_file)
         max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
         max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
         max_wmo_list = self._validate_cache_file_parm('wmo', wmo_list)
 
         float_df = pd.DataFrame()
-        self.logger.info('Using cache_file %s', self.cache_file)
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(max_wmo_list).iteritems()):
             float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(max_wmo_list))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
@@ -558,7 +565,7 @@ class ArgoData(object):
                 try:
                     df, m = self._get_df(key)
                     self.logger.debug(m['url'])
-                    if 'D' in code.upper() and check_for_updated:
+                    if 'D' in code.upper() and update_delayed_mode:
                         DATE_UPDATED = self._get_update_datetime(url)
                         if DATE_UPDATED:
                             if m['dateloaded'] < DATE_UPDATED:
