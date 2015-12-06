@@ -575,18 +575,23 @@ class ArgoData(object):
 
         return float_df
 
-    def _get_data_from_cache(self, wmo_df):
+    def _get_data_from_cache(self, wmo_list, wmo_df):
         '''Return DataFrame of data in the cache file without querying Argo
         '''
         float_df = pd.DataFrame()
-        for i, row in wmo_df.iterrows():
-            try:
-                key, code = self._float_profile_key(row['url'])
-            except AttributeError:
-                continue
-            df, _ = self._get_df(key)
-            if not df.dropna().empty:
-                float_df = float_df.append(df)
+        for f, wmo in enumerate(wmo_list):
+            rows = wmo_df.loc[wmo_df['wmo'] == wmo, :]
+            for i, row in rows.iterrows():
+                try:
+                    key, code = self._float_profile_key(row['url'])
+                except AttributeError:
+                    continue
+
+                self.logger.info('Float %s of %s, Profile %s of %s: %s', 
+                                 f, len(wmo_list)+1, i, len(rows)+1)
+                df, _ = self._get_df(key)
+                if not df.dropna().empty:
+                    float_df = float_df.append(df)
 
         return float_df
 
@@ -613,7 +618,7 @@ class ArgoData(object):
                                           append_df, update_delayed_mode)
         else:
             wmo_df = self.get_profile_metadata(flush=False)
-            df = self._get_data_from_cache(wmo_df)
+            df = self._get_data_from_cache(wmo_list, wmo_df)
 
         return df
 
@@ -622,10 +627,10 @@ class ArgoData(object):
         for each profile name in wmo_dict.
         '''
         profiles = []
-        Profile = namedtuple('Price', 'wmo name url code dateloaded')
+        Profile = namedtuple('profile', 'wmo name url code dateloaded')
         with pd.HDFStore(self.cache_file, mode='r+') as f:
             self.logger.debug('Building wmo_df by scanning %s', self.cache_file)
-            for wmo, name in wmo_dict.iteritems():
+            for name, wmo in wmo_dict.iteritems():
                 m = f.get_storer(name).attrs.metadata
                 _, code = self._float_profile_key(m['url'])
                 profiles.append(Profile(wmo, name, m['url'], code, m['dateloaded']))
@@ -650,8 +655,8 @@ class ArgoData(object):
         except (KeyError, TypeError):
             self.logger.debug('Building float_dict by scanning %s', self.cache_file)
             with pd.HDFStore(self.cache_file, mode='r+') as f:
-                float_dict = {g.split('/')[1].split('_')[1]: g
-                              for g in f.keys() if g.startswith('/WMO')}
+                float_dict = {g: g.split('/')[1].split('_')[1]
+                              for g in sorted(f.keys()) if g.startswith('/WMO')}
 
             wmo_df = self._build_profile_metadata_df(float_dict)
             self.logger.info('Putting %s into cache', self._ALL_WMO_DF)
