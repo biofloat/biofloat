@@ -9,6 +9,7 @@ import pydap.exceptions
 import xray
 
 from bs4 import BeautifulSoup
+from collections import namedtuple
 from contextlib import closing
 from datetime import datetime
 from requests.exceptions import ConnectionError
@@ -44,7 +45,7 @@ class ArgoData(object):
     _STATUS = 'status'
     _GLOBAL_META = 'global_meta'
     _BIO_PROFILE_INDEX = 'bio_global_index'
-    _ALL_WMO_LIST = 'all_wmo_list'
+    _ALL_WMO_DF = 'all_wmo_df'
     _OXY_COUNT_DF = 'oxy_count_df'
     _coordinates = {'PRES_ADJUSTED', 'LATITUDE', 'LONGITUDE', 'JULD'}
 
@@ -113,6 +114,9 @@ class ArgoData(object):
 
         if cache_file:
             self.cache_file_parms = self._get_cache_file_parms(cache_file)
+            if self.cache_file_parms:
+                self.logger.info('Using fixed cache file parms: %s', 
+                                 self.cache_file_parms)
             self.cache_file = cache_file
         else:
             # Write default cache to users home directory 
@@ -527,23 +531,16 @@ class ArgoData(object):
 
         return df
 
-    def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
-                                  append_df=True, check_for_updated=False):
-        '''Returns Pandas DataFrame for all the profile data from wmo_list.
-        Uses cached data if present, populates cache if not present.  If 
-        max_profiles is set to a number then data from only those profiles
-        will be returned, this is useful for testing or for getting just 
-        the most recent profiles from the float. To load only surface data
-        set a max_pressure value. Set append_df to False if calling simply 
-        to load cache_file (reduces memory requirements).  Set check_for_updated
-        to True to reload into the cache updated delayed mode data.
+    def _get_data_from_argo(self, wmo_list, max_profiles=None, max_pressure=None,
+                                  append_df=True, update_delayed_mode=False):
+        '''Query Argo web resources for all the profile data for floats in
+        wmo_list. Return DataFrame.
         '''
         max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
         max_pressure = self._validate_cache_file_parm('pressure', max_pressure)
         max_wmo_list = self._validate_cache_file_parm('wmo', wmo_list)
 
         float_df = pd.DataFrame()
-        self.logger.info('Using cache_file %s', self.cache_file)
         for f, (wmo, dac_url) in enumerate(self.get_dac_urls(max_wmo_list).iteritems()):
             float_msg = 'WMO_{}: Float {} of {}'. format(wmo, f+1, len(max_wmo_list))
             opendap_urls = self.get_profile_opendap_urls(dac_url)
@@ -558,7 +555,7 @@ class ArgoData(object):
                 try:
                     df, m = self._get_df(key)
                     self.logger.debug(m['url'])
-                    if 'D' in code.upper() and check_for_updated:
+                    if 'D' in code.upper() and update_delayed_mode:
                         DATE_UPDATED = self._get_update_datetime(url)
                         if DATE_UPDATED:
                             if m['dateloaded'] < DATE_UPDATED:
@@ -578,31 +575,98 @@ class ArgoData(object):
 
         return float_df
 
-    def get_cache_file_all_wmo_list(self, flush=False):
-        '''Return wmo numbers of all the floats in the cache file
+    def _get_data_from_cache(self, wmo_df):
+        '''Return DataFrame of data in the cache file without querying Argo
         '''
-        wmo_series = pd.Series([])
+        float_df = pd.DataFrame()
+        for i, row in wmo_df.iterrows():
+            try:
+                key, code = self._float_profile_key(row['url'])
+            except AttributeError:
+                continue
+            df, _ = self._get_df(key)
+            if not df.dropna().empty:
+                float_df = float_df.append(df)
+
+        return float_df
+
+
+    def get_float_dataframe(self, wmo_list, max_profiles=None, max_pressure=None,
+                                  append_df=True, update_delayed_mode=False,
+                                  update_cache=True):
+        '''Returns Pandas DataFrame for all the profile data from wmo_list.
+        Uses cached data if present, populates cache if not present.  If 
+        max_profiles limits the number of profiles returned per float,
+        this is useful for testing or for getting just 
+        the most recent profiles from the float. To load only surface data
+        set a max_pressure value. Set append_df to False if calling simply 
+        to load cache_file (reduces memory requirements).  Set update_delayed_mode
+        to True to reload into the cache updated delayed mode data.  If
+        update_cache is True then each DAC will be queried for new profile
+        data, which can take some time; for reading just data from the cache
+        set update_cache=False.
+        '''
+        self.logger.info('Using cache_file %s', self.cache_file)
+
+        if update_cache:
+            df = self._get_data_from_argo(wmo_list, max_profiles, max_pressure,
+                                          append_df, update_delayed_mode)
+        else:
+            wmo_df = self.get_profile_metadata(flush=False)
+            df = self._get_data_from_cache(wmo_df)
+
+        return df
+
+    def _build_profile_metadata_df(self, wmo_dict):
+        '''Read metadata from .hdf file to return a DataFrame of the metadata
+        for each profile name in wmo_dict.
+        '''
+        profiles = []
+        Profile = namedtuple('Price', 'wmo name url code dateloaded')
+        with pd.HDFStore(self.cache_file, mode='r+') as f:
+            self.logger.debug('Building wmo_df by scanning %s', self.cache_file)
+            for wmo, name in wmo_dict.iteritems():
+                m = f.get_storer(name).attrs.metadata
+                _, code = self._float_profile_key(m['url'])
+                profiles.append(Profile(wmo, name, m['url'], code, m['dateloaded']))
+
+        df = pd.DataFrame.from_records(profiles, columns=profiles[0]._fields)
+    
+        return df
+
+    def get_profile_metadata(self, flush=False):
+        '''Return DataFrame of all profile metadata in the cache file
+        '''
         if flush:
             try:
                 with pd.HDFStore(self.cache_file, mode='r+') as s:
-                    s.remove(self._ALL_WMO_LIST)
+                    s.remove(self._ALL_WMO_DF)
             except KeyError:
                 pass
         try:
             with pd.HDFStore(self.cache_file, mode='r+') as s:
-                wmo_series = s[self._ALL_WMO_LIST]
-                self.logger.info('Read %s from cache', self._ALL_WMO_LIST)
+                wmo_df = s[self._ALL_WMO_DF]
+                self.logger.info('Read %s from cache', self._ALL_WMO_DF)
         except (KeyError, TypeError):
+            self.logger.debug('Building float_dict by scanning %s', self.cache_file)
             with pd.HDFStore(self.cache_file, mode='r+') as f:
-                wmo_set = {g.split('/')[1].split('_')[1] 
+                float_dict = {g.split('/')[1].split('_')[1]: g
                               for g in f.keys() if g.startswith('/WMO')}
 
-            wmo_series = pd.Series(list(sorted(wmo_set)))
-            self.logger.info('Putting %s into cache', self._ALL_WMO_LIST)
+            wmo_df = self._build_profile_metadata_df(float_dict)
+            self.logger.info('Putting %s into cache', self._ALL_WMO_DF)
             with pd.HDFStore(self.cache_file, mode='r+') as s:
-                s.put(self._ALL_WMO_LIST, wmo_series, format='fixed')
+                s.put(self._ALL_WMO_DF, wmo_df, format='fixed')
 
-        return wmo_series.tolist()
+        return wmo_df
+
+    def get_cache_file_all_wmo_list(self, flush=False):
+        '''Return wmo numbers of all the floats in the cache file.  Has side
+        effect of storing DataFrame of all profile urls indexed by wmo number.
+        '''
+        wmo_df = self.get_profile_metadata(flush)
+
+        return wmo_df['wmo'].tolist()
 
     def get_cache_file_oxy_count_df(self, max_profiles=None, flush=False):
         '''Return DataFrame of profile and measurment counts for each float

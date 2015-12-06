@@ -115,6 +115,13 @@ class DataTest(unittest.TestCase):
         df = self.ad.get_float_dataframe(self.good_oga_floats, max_profiles=2)
         converters.to_odv(df, 'biofloat_data.txt')
 
+    def test_update_cache_false(self):
+        df = self.ad.get_float_dataframe(self.good_oga_floats, max_profiles=2,
+                                         update_cache=False)
+        self.assertNotEqual(len(df), 0)
+
+    def test_remove_df(self):
+        self.ad._remove_df(self.ad._GLOBAL_META)
 
 if __name__ == '__main__':
     unittest.main()
