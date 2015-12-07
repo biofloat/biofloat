@@ -48,7 +48,8 @@ class WOA_Calibrator(object):
         msdf = monthly_mean(sdf)
         if not msdf.empty:
             msdf = add_columns_for_woa_lookup(msdf)
-            self.logger.info('Doing WOA lookup for %s points', len(msdf))
+            self.logger.info('Doing WOA lookup for %s points: %s', len(msdf),
+                             msdf.index.get_level_values('wmo').unique()[0])
             woadf = add_column_from_woa(msdf, verbose=(self.args.print_woa_lookups 
                                                    and self.args.verbose))
             gdf = calculate_gain(woadf)
@@ -70,13 +71,15 @@ class WOA_Calibrator(object):
             self.logger.info('WMO_%s: Float %s of %s', wmo, i+1, len(wmo_list))
             try:
                 with pd.HDFStore(self.args.results_file) as s:
-                    self.logger.debug('Reading %s from %s', ('/WOA_WMO_{}').format(wmo), self.args.cache_file)
+                    self.logger.debug('Reading %s from %s', ('/WOA_WMO_{}').format(wmo),
+                                                             self.args.cache_file)
                     wmo_gdf = s.get(('/WOA_WMO_{}').format(wmo))
                     self.logger.debug('Done.')
             except KeyError:
                 df = ad.get_float_dataframe([wmo],
                                             max_profiles=self.args.profiles, 
-                                            max_pressure=self.args.pressure)
+                                            max_pressure=self.args.pressure,
+                                            update_cache=False)
                 wmo_gdf = self.woa_lookup(df)
 
                 # Save intermediate results to HDF file so that the script can
@@ -86,7 +89,8 @@ class WOA_Calibrator(object):
 
             if not wmo_gdf.dropna().empty:
                 self.logger.debug('wmo_gdf head: %s', wmo_gdf.head())
-                self.logger.info('Gain for %s = %s', wmo, wmo_gdf.groupby('wmo').gain.mean().values[0])
+                self.logger.info('Gain for %s = %s', wmo, 
+                                 wmo_gdf.groupby('wmo').gain.mean().values[0])
 
     def process_command_line(self):
         import argparse
