@@ -124,6 +124,8 @@ class ArgoData(object):
                               os.path.expanduser('~'), 
                               'biofloat_default_cache.hdf'))
 
+        self.logger.info('Using cache_file %s', self.cache_file)
+
     def _put_df(self, df, name, metadata=None):
         '''Save Pandas DataFrame to local HDF file with optional metadata dict.
         '''
@@ -400,7 +402,9 @@ class ArgoData(object):
             else:
                 rurls.append(url)
 
-        return durls + hasdurls + mrurls + rurls
+        # Return each group in reverse order, as they appear on the TDS
+        return sorted(durls, reverse=True) + sorted(hasdurls, reverse=True
+                ) + sorted(mrurls, reverse=True) + sorted(rurls, reverse=True)
 
     def get_profile_opendap_urls(self, catalog_url):
         '''Returns list of opendap urls for the profiles in catalog. The 
@@ -575,18 +579,23 @@ class ArgoData(object):
 
         return float_df
 
-    def _get_data_from_cache(self, wmo_df):
+    def _get_data_from_cache(self, wmo_list, wmo_df):
         '''Return DataFrame of data in the cache file without querying Argo
         '''
         float_df = pd.DataFrame()
-        for i, row in wmo_df.iterrows():
-            try:
-                key, code = self._float_profile_key(row['url'])
-            except AttributeError:
-                continue
-            df, _ = self._get_df(key)
-            if not df.dropna().empty:
-                float_df = float_df.append(df)
+        for f, wmo in enumerate(wmo_list):
+            rows = wmo_df.loc[wmo_df['wmo'] == wmo, :]
+            for i, (_, row) in enumerate(rows.iterrows()):
+                try:
+                    key, code = self._float_profile_key(row['url'])
+                except AttributeError:
+                    continue
+
+                self.logger.debug('Float %s of %s, Profile %s of %s: %s', 
+                                 f+1, len(wmo_list), i+1, len(rows), key)
+                df, _ = self._get_df(key)
+                if not df.dropna().empty:
+                    float_df = float_df.append(df)
 
         return float_df
 
@@ -606,14 +615,12 @@ class ArgoData(object):
         data, which can take some time; for reading just data from the cache
         set update_cache=False.
         '''
-        self.logger.info('Using cache_file %s', self.cache_file)
-
         if update_cache:
             df = self._get_data_from_argo(wmo_list, max_profiles, max_pressure,
                                           append_df, update_delayed_mode)
         else:
             wmo_df = self.get_profile_metadata(flush=False)
-            df = self._get_data_from_cache(wmo_df)
+            df = self._get_data_from_cache(wmo_list, wmo_df)
 
         return df
 
@@ -622,16 +629,23 @@ class ArgoData(object):
         for each profile name in wmo_dict.
         '''
         profiles = []
-        Profile = namedtuple('Price', 'wmo name url code dateloaded')
+        url_hash = {}
+        Profile = namedtuple('profile', 'wmo name url code dateloaded')
         with pd.HDFStore(self.cache_file, mode='r+') as f:
             self.logger.debug('Building wmo_df by scanning %s', self.cache_file)
-            for wmo, name in wmo_dict.iteritems():
+            for name, wmo in wmo_dict.iteritems():
                 m = f.get_storer(name).attrs.metadata
                 _, code = self._float_profile_key(m['url'])
                 profiles.append(Profile(wmo, name, m['url'], code, m['dateloaded']))
+                url_hash[m['url']] = Profile(wmo, name, m['url'], code, m['dateloaded'])
 
-        df = pd.DataFrame.from_records(profiles, columns=profiles[0]._fields)
-    
+        # Sort profiles in code order: D, MR, and the rest
+        sorted_profiles = []
+        for url in self._sort_opendap_urls(url_hash.keys()):
+            sorted_profiles.append(url_hash[url])
+
+        df = pd.DataFrame.from_records(sorted_profiles, columns=profiles[0]._fields)
+
         return df
 
     def get_profile_metadata(self, flush=False):
@@ -646,12 +660,12 @@ class ArgoData(object):
         try:
             with pd.HDFStore(self.cache_file, mode='r+') as s:
                 wmo_df = s[self._ALL_WMO_DF]
-                self.logger.info('Read %s from cache', self._ALL_WMO_DF)
+                self.logger.debug('Read %s from cache', self._ALL_WMO_DF)
         except (KeyError, TypeError):
             self.logger.debug('Building float_dict by scanning %s', self.cache_file)
             with pd.HDFStore(self.cache_file, mode='r+') as f:
-                float_dict = {g.split('/')[1].split('_')[1]: g
-                              for g in f.keys() if g.startswith('/WMO')}
+                float_dict = {g: g.split('/')[1].split('_')[1]
+                              for g in sorted(f.keys()) if g.startswith('/WMO')}
 
             wmo_df = self._build_profile_metadata_df(float_dict)
             self.logger.info('Putting %s into cache', self._ALL_WMO_DF)
@@ -666,7 +680,7 @@ class ArgoData(object):
         '''
         wmo_df = self.get_profile_metadata(flush)
 
-        return wmo_df['wmo'].tolist()
+        return wmo_df['wmo'].unique().tolist()
 
     def get_cache_file_oxy_count_df(self, max_profiles=None, flush=False):
         '''Return DataFrame of profile and measurment counts for each float
@@ -686,8 +700,9 @@ class ArgoData(object):
                 self.logger.info('Read %s from cache', self._OXY_COUNT_DF)
         except KeyError:
             oxy_hash = {}
-            for wmo in self.get_cache_file_all_wmo_list(flush=flush):
-                df = self.get_float_dataframe([wmo], max_profiles)
+            for wmo in self.get_cache_file_all_wmo_list(flush=False):
+                self.logger.info('Getting %s from cache', wmo)
+                df = self.get_float_dataframe([wmo], max_profiles, update_cache=False)
                 try:
                     if not df['DOXY_ADJUSTED'].dropna().empty:
                         odf = df.dropna().xs(wmo, level='wmo')
