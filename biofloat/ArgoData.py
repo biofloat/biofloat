@@ -579,13 +579,20 @@ class ArgoData(object):
 
         return float_df
 
-    def _get_data_from_cache(self, wmo_list, wmo_df):
+    def _get_data_from_cache(self, wmo_list, wmo_df, max_profiles=None):
         '''Return DataFrame of data in the cache file without querying Argo
         '''
+        max_profiles = self._validate_cache_file_parm('profiles', max_profiles)
+        # TODO: Make sure all in wmo_list is in max_wmo_list
+        ##max_wmo_list = self._validate_cache_file_parm('wmo', wmo_list)
+
         float_df = pd.DataFrame()
         for f, wmo in enumerate(wmo_list):
             rows = wmo_df.loc[wmo_df['wmo'] == wmo, :]
             for i, (_, row) in enumerate(rows.iterrows()):
+                if i >= max_profiles:
+                    self.logger.info('%s stopping at max_profiles = %s', wmo, max_profiles)
+                    break
                 try:
                     key, code = self._float_profile_key(row['url'])
                 except AttributeError:
@@ -620,7 +627,7 @@ class ArgoData(object):
                                           append_df, update_delayed_mode)
         else:
             wmo_df = self.get_profile_metadata(flush=False)
-            df = self._get_data_from_cache(wmo_list, wmo_df)
+            df = self._get_data_from_cache(wmo_list, wmo_df, max_profiles)
 
         return df
 

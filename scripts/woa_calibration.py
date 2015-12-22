@@ -28,6 +28,9 @@ class WOA_Calibrator(object):
 
     _log_levels = (logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG)
 
+    def __init__(self):
+        self._woa_lookup_count = 0
+
     def make_plot(self):
         plt.style.use('ggplot')
         plt.rcParams['figure.figsize'] = (18.0, 4.0)
@@ -48,8 +51,9 @@ class WOA_Calibrator(object):
         msdf = monthly_mean(sdf)
         if not msdf.empty:
             msdf = add_columns_for_woa_lookup(msdf)
-            self.logger.info('Doing WOA lookup for %s points: %s', len(msdf),
-                             msdf.index.get_level_values('wmo').unique()[0])
+            self._woa_lookup_count += len(msdf)
+            self.logger.info('Doing WOA lookup for %s points; total lookups: %s', 
+                             len(msdf), self._woa_lookup_count)
             woadf = add_column_from_woa(msdf, verbose=(self.args.print_woa_lookups 
                                                    and self.args.verbose))
             gdf = calculate_gain(woadf)
@@ -82,10 +86,13 @@ class WOA_Calibrator(object):
                                             update_cache=False)
                 wmo_gdf = self.woa_lookup(df)
 
-                # Save intermediate results to HDF file so that the script can
-                # pick up where it left off following network or other problems
-                with pd.HDFStore(self.args.results_file) as s:
-                    s.put(('/WOA_WMO_{}').format(wmo), wmo_gdf)
+                if not wmo_gdf.dropna().empty:
+                    # Save intermediate results to HDF file so that the script can
+                    # pick up where it left off following network or other problems
+                    with pd.HDFStore(self.args.results_file) as s:
+                        s.put(('/WOA_WMO_{}').format(wmo), wmo_gdf)
+                else:
+                    self.logger.warn('Empty DataFrame for wmo %s', wmo)
 
             if not wmo_gdf.dropna().empty:
                 self.logger.debug('wmo_gdf head: %s', wmo_gdf.head())
