@@ -48,7 +48,7 @@ class my_install_scripts(install_scripts):
 
 setup(
     name = "biofloat",
-    version = "0.4.3",
+    version = "0.4.4",
     packages = find_packages(),
     requires = ['Python (>=2.7)'],
     install_requires = [
