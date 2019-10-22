@@ -8,7 +8,7 @@ numpy==1.10.1
 pandas==0.17.0
 Pydap==3.1.1
 python-coveralls==2.4.1
-requests==2.8.1
+requests==2.20.0
 #scipy==0.16.1
 seawater==3.3.4
 simpletable==0.2.2
